@@ -25,3 +25,134 @@ model BillingRule {
 
   @@index([effectiveFrom])
 }
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum RegistrationStatus {
+  BARU
+  DITINDAKLANJUTI
+  MENUNGGU_KONFIRMASI_COVERAGE
+  PERLU_SURVEI
+  DISETUJUI
+  DITOLAK
+  SELESAI
+}
+
+enum AuditAction {
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  LOGOUT
+  ROLE_CHANGED
+  REGISTRATION_CREATED
+  REGISTRATION_STATUS_CHANGED
+  FOLLOW_UP_CREATED
+}
+
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  email           String           @unique @db.VarChar(320)
+  passwordHash    String           @db.VarChar(255)
+  status          UserStatus       @default(INVITED)
+  lastLoginAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  roles           UserRole[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  followUps       RegistrationFollowUp[]
+}
+
+model Role {
+  id          String     @id @default(uuid()) @db.Uuid
+  code        String     @unique @db.VarChar(64)
+  name        String     @db.VarChar(120)
+  createdAt   DateTime   @default(now())
+  users       UserRole[]
+}
+
+model UserRole {
+  userId      String   @db.Uuid
+  roleId      String   @db.Uuid
+  assignedAt  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model Session {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @db.Uuid
+  tokenHash           String   @unique @db.VarChar(128)
+  csrfTokenHash       String   @db.VarChar(128)
+  expiresAt            DateTime
+  idleExpiresAt       DateTime
+  lastSeenAt          DateTime @default(now())
+  revokedAt           DateTime?
+  createdAt           DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model Registration {
+  id                    String               @id @default(uuid()) @db.Uuid
+  fullName              String               @db.VarChar(160)
+  whatsapp              String               @db.VarChar(32)
+  email                 String?              @db.VarChar(320)
+  installationAddress   String               @db.Text
+  area                  String?              @db.VarChar(160)
+  latitude              Decimal?             @db.Decimal(9, 6)
+  longitude             Decimal?             @db.Decimal(9, 6)
+  coordinatesConsent    Boolean              @default(false)
+  requestedPlan         String?              @db.VarChar(120)
+  notes                 String?              @db.Text
+  source                String               @db.VarChar(80)
+  communicationConsent  Boolean
+  status                RegistrationStatus   @default(BARU)
+  idempotencyKey        String?              @unique @db.VarChar(128)
+  coverageConfirmedAt   DateTime?
+  coverageConfirmedById String?              @db.Uuid
+  approvalReason        String?              @db.Text
+  submittedAt           DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  followUps             RegistrationFollowUp[]
+
+  @@index([status, submittedAt])
+  @@index([area, submittedAt])
+  @@index([whatsapp])
+}
+
+model RegistrationFollowUp {
+  id             String       @id @default(uuid()) @db.Uuid
+  registrationId String       @db.Uuid
+  actorId        String       @db.Uuid
+  note           String       @db.Text
+  createdAt      DateTime     @default(now())
+  registration   Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  actor          User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([registrationId, createdAt])
+}
+
+model AuditLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  actorId        String?     @db.Uuid
+  action         AuditAction
+  resourceType   String      @db.VarChar(80)
+  resourceId     String?     @db.Uuid
+  correlationId  String?     @db.VarChar(128)
+  beforeRedacted Json?
+  afterRedacted  Json?
+  createdAt      DateTime    @default(now())
+  actor          User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([resourceType, resourceId, createdAt])
+}
