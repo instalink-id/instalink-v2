@@ -6,12 +6,14 @@ import { HealthController } from './health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { AccessControlModule } from './modules/access-control/access-control.module.js';
+import { RegistrationsModule } from './modules/registrations/registrations.module.js';
 
 @Module({
   imports: [
     PrismaModule,
     IdentityModule,
     AccessControlModule,
+    RegistrationsModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
