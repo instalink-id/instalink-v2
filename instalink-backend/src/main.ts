@@ -20,9 +20,16 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Instalink ISP API')
-    .setDescription('REST API foundation for the Instalink ISP FTTH system')
+    .setDescription(
+      'REST API for InstaLink ISP FTTH management. Staff endpoints use HttpOnly session cookies and backend-enforced permissions.',
+    )
     .setVersion('0.1.0')
     .addBearerAuth()
+    .addCookieAuth('instalink_session', {
+      type: 'apiKey',
+      in: 'cookie',
+      name: 'instalink_session',
+    })
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);

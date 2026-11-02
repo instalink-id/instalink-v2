@@ -1,6 +1,7 @@
 # Kontrak REST API Awal
 
-Base URL: `/api/v1`. Semua response memiliki `requestId`; error memakai format
+Base URL: `/api/v1`. Response sukses mengembalikan payload endpoint secara
+langsung; request ID tersedia pada header `X-Request-Id`. Error memakai format
 terstruktur `{ code, message, details?, requestId }`. Pagination memakai
 `page`, `pageSize`, `sort`, dan filter tervalidasi. Swagger tersedia di
 environment non-production atau di balik akses admin.
@@ -33,6 +34,15 @@ environment non-production atau di balik akses admin.
 | GET/POST/PATCH | `/plans`, `/plans/:id` | `catalog:*` |
 | GET/POST/PATCH | `/imports`, `/imports/:id` | finance/admin; upload, preview, validate, approve |
 | POST | `/imports/:id/commit` | approver setelah preview dan error review |
+
+## Customer Service dashboard
+
+| Method | Path | Akses |
+| --- | --- | --- |
+| GET | `/dashboard/registrations/summary` | `dashboard:read` |
+| GET | `/registrations`, `/registrations/:id` | `registration:read` |
+| PATCH | `/registrations/:id/status` | `registration:write` |
+| POST | `/registrations/:id/follow-ups` | `registration:write` |
 
 ## Survey, instalasi, dan teknisi
 

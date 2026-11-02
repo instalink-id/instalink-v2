@@ -250,8 +250,12 @@ Endpoint public registration dapat memakai namespace
 `/api/v1/public/registrations` bila pemisahan public/staff dibutuhkan oleh
 kontrak akhir. Keputusan path final dibuat sebelum implementasi.
 
-Kontrak menggunakan response envelope konsisten, pagination `page`/`pageSize`,
-sorting dan filter tervalidasi, sesuai kontrak awal pada `docs/api.md`.
+Response sukses mengembalikan payload endpoint secara langsung dan request ID
+tersedia di header `X-Request-Id`; error menggunakan envelope
+`{ code, message, details?, requestId }`. Pagination memakai `page`/`pageSize`,
+sorting dan filter tervalidasi. Keputusan success response ini dikonfirmasi
+pengguna pada 2026-11-02 untuk menjaga keselarasan dengan endpoint yang sudah
+berjalan.
 
 ## Data integrity and security
 

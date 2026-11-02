@@ -391,8 +391,8 @@ git commit -m "feat: add registration workflow and audit trail"
 - `GET /api/v1/dashboard/registrations/summary`
 - Summary response contains counts for every registration status, including
   zero-count statuses, plus a bounded latest-registration list.
-- All list/detail/summary responses use the documented success envelope and
-  errors use `{ code, message, details?, requestId }`.
+- List/detail/summary responses return endpoint payloads directly with
+  `X-Request-Id`; errors use `{ code, message, details?, requestId }`.
 
 - [ ] **Step 1: Write failing dashboard API tests**
 
