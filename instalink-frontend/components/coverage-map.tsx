@@ -97,6 +97,7 @@ export function CoverageMap() {
   const [address, setAddress] = useState("");
   const [status, setStatus] = useState("Memuat jalur jaringan...");
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [coverageDataAvailable, setCoverageDataAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetch("/coverage.kml")
@@ -106,9 +107,13 @@ export function CoverageMap() {
       })
       .then((parsedLines) => {
         setLines(parsedLines);
-        setStatus(`${parsedLines.length} jalur jaringan ditampilkan sebagai pemeriksaan indikatif.`);
+        setCoverageDataAvailable(parsedLines.length > 0);
+        setStatus(parsedLines.length > 0 ? `${parsedLines.length} jalur jaringan ditampilkan sebagai pemeriksaan indikatif.` : "Jalur KML tidak memiliki jalur yang dapat diperiksa.");
       })
-      .catch(() => setStatus("Unggah file KML jalur kabel untuk menampilkan coverage."));
+      .catch(() => {
+        setCoverageDataAvailable(false);
+        setStatus("Unggah file KML jalur kabel untuk menampilkan coverage.");
+      });
   }, []);
 
   const indicativeCoverage = useMemo(
@@ -171,6 +176,7 @@ export function CoverageMap() {
         const parsedLines = parseKml(String(reader.result));
         if (parsedLines.length === 0) throw new Error("KML tidak memiliki geometry LineString.");
         setLines(parsedLines);
+        setCoverageDataAvailable(true);
         setStatus(`${parsedLines.length} jalur jaringan berhasil dimuat.`);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "File KML tidak dapat dibaca.");
@@ -199,7 +205,7 @@ export function CoverageMap() {
       </div>
       {location && (
         <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${indicativeCoverage ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
-          {location.label} — {indicativeCoverage ? "Terindikasi dekat jalur kabel dalam radius 50 meter." : "Belum terindikasi dekat jalur kabel dalam radius 50 meter."}
+          {location.label} — {coverageDataAvailable === false ? "Coverage belum dapat diperiksa karena data jalur belum tersedia." : indicativeCoverage ? "Terindikasi dekat jalur kabel dalam radius 50 meter." : "Belum terindikasi dekat jalur kabel dalam radius 50 meter."}
           <span className="mt-1 block text-xs font-normal">Hasil ini bukan keputusan akhir; konfirmasi alamat diperlukan.</span>
         </div>
       )}

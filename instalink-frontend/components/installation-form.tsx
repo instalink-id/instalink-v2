@@ -26,6 +26,7 @@ function buildWhatsAppUrl(data: InstallationData) {
 export function InstallationForm() {
   const [submitted, setSubmitted] = useState(false);
   const [whatsAppUrl, setWhatsAppUrl] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -37,6 +38,11 @@ export function InstallationForm() {
       address: String(formData.get("address") ?? "").trim(),
       plan: String(formData.get("plan") ?? "").trim(),
     };
+    if (!data.name || !data.email || !data.phone || !data.address) {
+      setValidationError("Nama, email, nomor WhatsApp, dan alamat wajib diisi.");
+      return;
+    }
+    setValidationError("");
     setWhatsAppUrl(buildWhatsAppUrl(data));
     setSubmitted(true);
   };
@@ -53,6 +59,7 @@ export function InstallationForm() {
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
+      {validationError ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{validationError}</p> : null}
       <label className="grid gap-2 text-sm font-medium">Nama lengkap<input required name="name" className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-cyan-600" /></label>
       <label className="grid gap-2 text-sm font-medium">Email<input required type="email" name="email" className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-cyan-600" /></label>
       <label className="grid gap-2 text-sm font-medium">Nomor WhatsApp<input required name="phone" className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-cyan-600" /></label>
