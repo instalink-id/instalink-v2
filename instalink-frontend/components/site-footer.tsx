@@ -3,7 +3,7 @@ import Link from "next/link";
 export function SiteFooter() {
   return (
     <footer className="border-t border-slate-200 bg-white">
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 md:grid-cols-3 lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 sm:py-12 md:grid-cols-3 lg:px-8">
         <div>
           <Link href="/" className="text-xl font-bold text-slate-950">
             Insta<span className="text-cyan-600">Link</span>
@@ -31,10 +31,9 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t border-slate-100 px-6 py-4 text-center text-xs text-slate-400">
+      <div className="border-t border-slate-100 px-4 py-4 text-center text-xs text-slate-400 sm:px-6">
         © 2026 PT Sinergi Infrastruktur Digital. Hak cipta dilindungi.
       </div>
     </footer>
   );
 }
-

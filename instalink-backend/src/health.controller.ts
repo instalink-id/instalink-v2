@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('system')
@@ -14,9 +14,10 @@ export class HealthController {
   }
 
   @Get('ready')
+  @HttpCode(HttpStatus.SERVICE_UNAVAILABLE)
   getReadiness() {
     return {
-      status: 'ok',
+      status: 'not_ready',
       checks: {
         configuration: 'ok',
         database: 'not-configured',

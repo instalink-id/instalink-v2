@@ -181,11 +181,11 @@ export function CoverageMap() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
           <input value={address} onChange={(event) => setAddress(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void searchAddress()} placeholder="Cari alamat pemasangan..." className="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-cyan-600" />
-          <button type="button" onClick={() => void searchAddress()} disabled={loadingLocation} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Cari alamat</button>
+          <button type="button" onClick={() => void searchAddress()} disabled={loadingLocation} className="shrink-0 rounded-xl bg-slate-950 px-3 py-3 text-xs font-semibold text-white disabled:opacity-50 sm:px-4 sm:text-sm">Cari alamat</button>
         </div>
-        <button type="button" onClick={useDeviceLocation} disabled={loadingLocation} className="rounded-xl border border-cyan-700 px-4 py-3 text-sm font-semibold text-cyan-800 disabled:opacity-50">{loadingLocation ? "Memproses..." : "Gunakan lokasi perangkat"}</button>
+        <button type="button" onClick={useDeviceLocation} disabled={loadingLocation} className="w-full rounded-xl border border-cyan-700 px-4 py-3 text-sm font-semibold text-cyan-800 disabled:opacity-50 md:w-auto">{loadingLocation ? "Memproses..." : "Gunakan lokasi perangkat"}</button>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
         <span>{status}</span>
