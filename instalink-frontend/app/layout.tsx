@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Instalink | Internet untuk Rumah Anda",
-  description: "Layanan internet fiber optik Instalink.",
+  title: "InstaLink | Cek Coverage dan Layanan Internet",
+  description: "Kenali layanan InstaLink, cek coverage secara indikatif, dan mulai pengajuan pemasangan berdasarkan alamat Anda.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
