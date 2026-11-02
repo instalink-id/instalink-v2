@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { RegistrationStatus } from '@prisma/client';
 import type { Request } from 'express';
 import { RequirePermissions } from '../access-control/permission.decorator.js';
 import { MVP_PERMISSIONS } from '../access-control/permissions.js';
@@ -20,7 +19,13 @@ import { SessionGuard } from '../identity/guards/session.guard.js';
 import { CreateRegistrationDto } from './dto/create-registration.dto.js';
 import { ChangeRegistrationStatusDto } from './dto/change-registration-status.dto.js';
 import { CreateFollowUpDto } from './dto/create-follow-up.dto.js';
+import { RegistrationListQueryDto } from './dto/registration-list-query.dto.js';
+import { serializeRegistrationForRoles } from './registration-serializer.js';
 import { RegistrationsService } from './registrations.service.js';
+
+type StaffRequest = Request & {
+  user?: { user?: { id?: string; roles?: string[] } };
+};
 
 @ApiTags('registrations')
 @Controller()
@@ -39,25 +44,36 @@ export class RegistrationsController {
   @Get('registrations')
   @UseGuards(SessionGuard, PermissionGuard)
   @RequirePermissions(MVP_PERMISSIONS.registrationRead)
-  list(
-    @Query('page') page = '1',
-    @Query('pageSize') pageSize = '20',
-    @Query('status') status?: RegistrationStatus,
-    @Query('area') area?: string,
+  async list(
+    @Query() query: RegistrationListQueryDto,
+    @Req() request: StaffRequest,
   ) {
-    return this.registrations.list({
-      page: Math.max(1, Number(page) || 1),
-      pageSize: Math.min(100, Math.max(1, Number(pageSize) || 20)),
-      status,
-      area,
+    const result = await this.registrations.list({
+      page: query.page,
+      pageSize: query.pageSize,
+      status: query.status,
+      area: query.area,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
     });
+    const roles = request.user?.user?.roles ?? [];
+    return {
+      ...result,
+      items: result.items.map((item) =>
+        serializeRegistrationForRoles(item, roles),
+      ),
+    };
   }
 
   @Get('registrations/:id')
   @UseGuards(SessionGuard, PermissionGuard)
   @RequirePermissions(MVP_PERMISSIONS.registrationRead)
-  findOne(@Param('id') id: string) {
-    return this.registrations.findOne(id);
+  async findOne(@Param('id') id: string, @Req() request: StaffRequest) {
+    const registration = await this.registrations.findOne(id);
+    return serializeRegistrationForRoles(
+      registration,
+      request.user?.user?.roles ?? [],
+    );
   }
 
   @Patch('registrations/:id/status')

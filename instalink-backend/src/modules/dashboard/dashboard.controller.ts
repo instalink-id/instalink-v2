@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiOkResponse,
@@ -6,6 +6,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { Transform } from 'class-transformer';
 import {
   IsDateString,
@@ -22,6 +23,11 @@ import { PermissionGuard } from '../access-control/permission.guard.js';
 import { SessionGuard } from '../identity/guards/session.guard.js';
 import { DashboardService } from './dashboard.service.js';
 import { RegistrationSummaryDto } from './dto/registration-summary.dto.js';
+import { serializeRegistrationForRoles } from '../registrations/registration-serializer.js';
+
+type StaffRequest = Request & {
+  user?: { user?: { roles?: string[] } };
+};
 
 class RegistrationSummaryQueryDto {
   @IsOptional()
@@ -61,7 +67,22 @@ export class DashboardController {
   @ApiQuery({ name: 'to', required: false, type: String, format: 'date-time' })
   @ApiQuery({ name: 'limit', required: false, type: Number, maximum: 50 })
   @ApiOkResponse({ type: RegistrationSummaryDto })
-  registrationSummary(@Query() query: RegistrationSummaryQueryDto) {
-    return this.dashboard.registrationSummary(query);
+  async registrationSummary(
+    @Query() query: RegistrationSummaryQueryDto,
+    @Req() request: StaffRequest,
+  ) {
+    const summary = await this.dashboard.registrationSummary({
+      area: query.area,
+      from: query.from,
+      to: query.to,
+      limit: query.limit,
+    });
+    const roles = request.user?.user?.roles ?? [];
+    return {
+      counts: summary.counts,
+      latest: summary.latest.map((registration) =>
+        serializeRegistrationForRoles(registration, roles),
+      ),
+    };
   }
 }

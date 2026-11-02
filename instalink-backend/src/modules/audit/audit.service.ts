@@ -51,6 +51,15 @@ export class AuditService {
       }),
       this.prisma.auditLog.count(),
     ]);
-    return { items, page, pageSize, total };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        beforeRedacted: redactAuditSnapshot(item.beforeRedacted),
+        afterRedacted: redactAuditSnapshot(item.afterRedacted),
+      })),
+      page,
+      pageSize,
+      total,
+    };
   }
 }

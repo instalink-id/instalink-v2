@@ -95,6 +95,13 @@ dan alur ini tidak membutuhkan integrasi Midtrans atau MikroTik.
 - Error login bersifat generik untuk mencegah user enumeration.
 - Rate limit login dan endpoint sensitif wajib tersedia sebelum UAT.
 
+Endpoint `GET /me` hanya mengembalikan identitas publik (`id`, `email`, dan
+`roles`); detail session dan hash token tidak boleh diserialisasi ke browser.
+Frontend menggunakan request same-origin `/api/v1`, mengirim credentials, dan
+mengirim token CSRF dari cookie yang dapat dibaca hanya pada mutation yang
+dilindungi CSRF. Token session tidak disimpan di `localStorage` atau
+`sessionStorage`.
+
 User pertama dibuat melalui seed Super Admin lokal. User internal berikutnya
 dibuat atau diundang oleh Super Admin melalui workflow yang diaudit. Detail
 reset password dan MFA dirinci pada implementation plan dengan acceptance
@@ -113,6 +120,13 @@ Role aktif pada MVP:
 Role lain tetap berada dalam arsitektur, tetapi belum memiliki workflow aktif:
 `general_manager`, `finance`, `noc_network_engineer`, `field_technician`, dan
 `customer`.
+
+Untuk role `auditor_viewer`, backend meredaksi nama lengkap, nomor WhatsApp,
+email, alamat pemasangan, koordinat presisi, catatan registrasi, dan catatan
+follow-up pada response registrasi, ringkasan terbaru, follow-up, serta audit.
+Customer Service dan Super Admin tetap mendapat detail yang diperlukan untuk
+operasional. Pembatasan ini diterapkan pada API, bukan hanya dengan
+menyembunyikan field di UI.
 
 ### Registration data
 
@@ -194,6 +208,22 @@ Dashboard internal pertama menyediakan:
 
 Dashboard tidak menampilkan pendapatan, invoice, subscription aktif, atau
 network health pada fase ini.
+
+### Arah visual dashboard
+
+Dashboard internal menggunakan tata letak operasional yang ringkas, bukan
+mengulang section situs publik yang lebih ekspresif. Identitas InstaLink tetap
+terlihat melalui permukaan terang, warna teks gelap, tipografi Geist, dan aksen
+cyan secukupnya. Navigasi desktop berada di sisi ruang kerja; pada layar sempit
+navigasi berubah menjadi menu yang aksesibel. Angka ringkasan, baris
+registrasi, dan aksi workflow lebih diprioritaskan daripada dekorasi.
+
+Status selalu disampaikan dengan teks selain warna. Daftar registrasi mendukung
+filter status, area, dan rentang tanggal; detail menampilkan informasi kontak
+dan pemasangan, aksi status, serta catatan follow-up. Login, loading, empty,
+error, unauthorized, dan forbidden memiliki tampilan yang jelas. Dashboard
+tidak menambahkan metrik finansial atau jaringan dan tidak memerlukan
+dependency frontend baru.
 
 ## Proposed architecture
 
@@ -286,7 +316,8 @@ staging-like setelah kebutuhan multi-service muncul.
   policy, dan audit event.
 - Integration test Prisma dengan PostgreSQL native Windows pada database/schema
   test terpisah dari development.
-- API contract test untuk DTO, response envelope, pagination, dan authorization.
+- API contract test untuk DTO, payload sukses langsung, error envelope,
+  pagination, dan authorization.
 - E2E test login -> submit registration -> staff review -> follow-up -> audit.
 - Security test untuk unauthenticated access, role denial, CSRF, rate limit, dan
   data exposure.
@@ -297,8 +328,8 @@ staging-like setelah kebutuhan multi-service muncul.
 
 1. Nama tabel dan enum final untuk registration serta follow-up.
 2. Detail mekanisme CSRF dan cookie attributes untuk environment production.
-3. DTO, response envelope, dan filter field final yang tidak mengubah keputusan
-   pagination `page`/`pageSize`.
+3. DTO dan filter field final yang tidak mengubah keputusan pagination
+   `page`/`pageSize`.
 4. Detail seed/undangan user dan reset password.
 5. Setup database/schema test native PostgreSQL yang tidak menyentuh database
    development.

@@ -18,7 +18,7 @@
 - Registration status transitions are backend-enforced; approval requires confirmed coverage and a required reason/note.
 - Public registration is rate-limited, validated, deduplicated/idempotent, and isolated from staff endpoints.
 - Dashboard is served at `/dashboard` on the same origin as the public website.
-- API uses `/api/v1`, a consistent response/error envelope, validated `page`/`pageSize` pagination, sorting, and filters.
+- API uses `/api/v1`, direct success payloads with `X-Request-Id`, structured error envelopes, and validated `page`/`pageSize` pagination, sorting, and filters.
 - Audit login, role changes, registrations, status changes, and follow-ups; redact PII and retain the initial audit scope for 12 months.
 - Use synthetic fixtures only; do not add production credentials, customer data, router secrets, or provider secrets.
 - Do not implement billing, Midtrans, subscription activation, automatic disconnection, MikroTik/OLT provisioning, or production deployment.
@@ -31,7 +31,7 @@
 - **Cross-role mutation:** `auditor_viewer` must receive authorization denial for every mutation and `customer_service` must not manage roles; covered by Task 3 policy and API tests.
 - **Public duplicate/abuse submission:** repeated idempotency keys and normalized duplicate contacts must not create unintended registrations; covered by Task 4 public registration tests.
 - **Invalid status approval:** approval without confirmed coverage or without a reason must fail atomically and create no misleading audit event; covered by Task 5 transition tests.
-- **PII leakage through list/audit responses:** list, detail, and audit serialization must redact fields according to role/scope; covered by Tasks 5 and 6 serialization tests.
+- **PII leakage through list/audit responses:** list, detail, summary, follow-up, and audit serialization must redact the approved fields for `auditor_viewer`; covered by Task 7 serializer/API tests.
 
 ---
 
@@ -433,6 +433,17 @@ git commit -m "feat: expose customer service dashboard api"
 ### Task 7: Build authenticated dashboard shell and registration workflow UI
 
 **Files:**
+- Modify: `instalink-backend/src/modules/identity/identity.controller.ts` to return only the public user from `GET /me`
+- Create: `instalink-backend/test/identity/me.spec.ts`
+- Modify: `instalink-backend/src/modules/registrations/registrations.controller.ts` to expose validated date-range filters
+- Create: `instalink-backend/src/modules/registrations/dto/registration-list-query.dto.ts`
+- Create: `instalink-backend/src/modules/registrations/registration-serializer.ts`
+- Create: `instalink-backend/test/registrations/registration-serializer.spec.ts`
+- Create: `instalink-backend/test/registrations/registration-list-api.spec.ts`
+- Modify: `instalink-backend/src/modules/dashboard/dashboard.controller.ts` to redact dashboard summary PII for auditors
+- Modify: `instalink-backend/test/dashboard/dashboard-api.spec.ts` to assert auditor PII redaction
+- Modify: `instalink-backend/src/modules/audit/audit-serializer.ts` and `audit.service.ts` to redact approved PII fields on write and read
+- Modify: `instalink-backend/test/audit/audit-redaction.spec.ts`
 - Create: `instalink-frontend/app/dashboard/layout.tsx`
 - Create: `instalink-frontend/app/dashboard/page.tsx`
 - Create: `instalink-frontend/app/dashboard/login/page.tsx`
@@ -446,59 +457,76 @@ git commit -m "feat: expose customer service dashboard api"
 - Create: `instalink-frontend/lib/api-client.ts`
 - Create: `instalink-frontend/lib/dashboard-api.ts`
 - Create: `instalink-frontend/lib/dashboard-types.ts`
-- Create: `instalink-frontend/tests/dashboard-smoke.spec.ts`
+- Modify: `instalink-frontend/next.config.ts` to proxy same-origin API requests in local development
 - Modify: `instalink-frontend/components/site-header.tsx` only if dashboard link/access state is needed
 - Modify: `instalink-frontend/package.json` only if an existing approved browser test runner is already available; do not add a new runner without approval
 
 **Interfaces:**
-- API client sends same-origin requests with credentials and CSRF header where
-  required; it never stores session tokens in localStorage.
-- Dashboard pages consume the typed summary/list/detail/follow-up contracts from
-  Tasks 5 and 6.
-- Unauthorized responses redirect to `/dashboard/login`; forbidden responses
-  render an explicit access-denied state.
+- `GET /api/v1/me` returns `{ user: { id, email, roles } }`; it never returns session records or token hashes.
+- `GET /api/v1/registrations` accepts `status`, `area`, `from`, `to`, `page`, and `pageSize`, and returns `{ items, page, pageSize, total }`.
+- Registration list dates are ISO date-times, `from <= to`, `page` defaults to 1, and `pageSize` defaults to 20 with a maximum of 100.
+- `GET /api/v1/dashboard/registrations/summary` returns `{ counts, latest }`; counts include every `RegistrationStatus` key and latest defaults to 10, capped at 50.
+- Registration/list/detail/summary/follow-up/audit serializers redact `fullName`, `whatsapp`, `email`, `installationAddress`, `latitude`, `longitude`, and free-text notes for `auditor_viewer`; Customer Service and Super Admin retain operational details.
+- The frontend API client uses same-origin `/api/v1`, `credentials: 'include'`, and the `instalink_csrf` cookie as `x-csrf-token` for protected mutations; it never stores session tokens in Web Storage.
+- Login, current-user, summary, registration list/detail, status change, follow-up, and logout calls have typed functions in `lib/dashboard-api.ts`.
+- Unauthorized responses navigate to `/dashboard/login`; forbidden responses render an explicit access-denied state.
 
-- [ ] **Step 1: Write failing frontend contract/smoke tests**
+- [x] **Step 1: Write failing frontend contract/smoke tests**
 
-Test login state routing, summary cards, latest registrations, status/area/date
-filters, registration detail, follow-up submission, loading/empty/error states,
-and absence of token storage in localStorage.
+There is no frontend test runner in the current package. Use a deterministic
+browser smoke script with intercepted API responses; cover login routing,
+summary and latest registrations, filters, detail, status/follow-up actions,
+loading/empty/error/forbidden states, and no Web Storage access for tokens.
+Also add failing backend tests for the safe `/me` response and validated list
+date filters before changing either controller. Add serializer tests proving
+the listed PII fields are masked for auditors, including nested follow-up notes
+and audit snapshots on write and read.
 
-- [ ] **Step 2: Run the focused frontend test and verify failure**
+- [x] **Step 2: Run the focused frontend test and verify failure**
 
-Use the repository's existing browser validation mechanism if available. If no
-test runner is present, document the gap and use a deterministic browser smoke
-script without adding a dependency.
+Use the VS Code browser automation available in this environment without
+adding a frontend test dependency.
 
-Expected: FAIL because dashboard routes and API client do not exist.
+Expected: dashboard routes return 404 and the backend contract tests fail
+because the safe `/me` serializer and list date query DTO are not implemented.
 
-- [ ] **Step 3: Implement typed same-origin API client**
+- [x] **Step 3: Implement typed same-origin API client**
 
-Implement request/response types, credentials policy, CSRF handling, structured
-error parsing, and unauthorized/forbidden behavior.
+Implement the typed API functions listed above. In local development, proxy
+`/api/v1/:path*` to `BACKEND_API_ORIGIN` (default `http://localhost:3001`)
+through `next.config.ts`.
 
-- [ ] **Step 4: Implement dashboard layout and pages**
+- [x] **Step 4: Implement dashboard layout and pages**
 
-Build the shell, summary, table, filters, detail, status action, and follow-up
-form using the existing visual language. Include explicit loading, empty,
-error, and unauthorized states. Keep Indonesian-facing labels and do not show
-unimplemented billing/network metrics.
+Build the compact operational shell approved in the spec: light surfaces,
+dark text, restrained cyan, visible desktop navigation, and an accessible
+narrow-screen menu. Implement summary, table, status/area/date filters, detail,
+transition-aware status action (coverage confirmation and reason for approval),
+follow-up form, login/logout, and explicit loading/empty/error/unauthorized/
+forbidden states. Keep Indonesian-facing labels and do not show unimplemented
+billing/network metrics.
 
-- [ ] **Step 5: Run frontend validation**
+- [x] **Step 5: Run frontend validation**
 
 ```powershell
+Set-Location .\instalink-backend
+npm.cmd test
+npm.cmd run test:e2e
+npm.cmd run lint
+npm.cmd run build
+
 Set-Location ..\instalink-frontend
 npm.cmd run lint
 npm.cmd run build
 ```
 
-Expected: lint and production build pass; browser smoke assertions cover the
-dashboard route where the existing environment supports them.
+Expected: backend tests, lint, and build pass; frontend lint and production
+build pass; browser smoke assertions cover the dashboard route.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
-git add instalink-frontend
+git add docs/api.md docs/superpowers/specs/2026-11-02-instalink-customer-service-foundation-design.md docs/superpowers/plans/2026-11-02-instalink-customer-service-foundation.md instalink-backend/src/modules/identity/identity.controller.ts instalink-backend/src/modules/registrations instalink-backend/src/modules/dashboard/dashboard.controller.ts instalink-backend/src/modules/audit instalink-backend/test/identity instalink-backend/test/registrations instalink-backend/test/audit instalink-frontend
 git commit -m "feat: add customer service dashboard"
 ```
 
@@ -520,9 +548,9 @@ git commit -m "feat: add customer service dashboard"
 
 - [ ] **Step 1: Write the failing end-to-end flow**
 
-Use synthetic fixtures and a separate PostgreSQL test database. Assert response
-envelopes, cookie auth, CSRF, role denial, registration lifecycle, and audit
-record redaction.
+Use synthetic fixtures and a separate PostgreSQL test database. Assert direct
+success payloads, structured error envelopes, cookie auth, CSRF, role denial,
+registration lifecycle, and audit record redaction.
 
 - [ ] **Step 2: Run the E2E test to verify the expected failure**
 

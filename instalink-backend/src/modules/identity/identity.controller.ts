@@ -51,7 +51,7 @@ export class IdentityController {
 export class MeController {
   @Get('me')
   @UseGuards(SessionGuard)
-  me(@Req() request: Request & { user?: unknown }) {
-    return request.user;
+  me(@Req() request: { user: { user: { id: string; email: string; roles: string[] } } }) {
+    return { user: request.user.user };
   }
 }

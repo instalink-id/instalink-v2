@@ -44,6 +44,9 @@ environment non-production atau di balik akses admin.
 | PATCH | `/registrations/:id/status` | `registration:write` |
 | POST | `/registrations/:id/follow-ups` | `registration:write` |
 
+Untuk `auditor_viewer`, API meredaksi nama, kontak, alamat pemasangan,
+koordinat presisi, serta catatan bebas; izin read-only tidak membuka PII.
+
 ## Survey, instalasi, dan teknisi
 
 | Method | Path | Akses |

@@ -182,6 +182,7 @@ describe('dashboard registrations summary API', () => {
         expect(response.body.counts.DITOLAK).toBe(0);
         expect(response.body.latest).toHaveLength(50);
         expect(response.body.latest[0].id).toBe('candidate-54');
+        expect(response.body.latest[0].fullName).toBe('[REDACTED]');
         expect(response.body.latest[49].id).toBe('candidate-5');
       });
   });

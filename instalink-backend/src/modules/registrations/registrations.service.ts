@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   HttpException,
@@ -70,6 +71,11 @@ export class RegistrationsService {
     from?: Date;
     to?: Date;
   }) {
+    if (input.from && input.to && input.from > input.to) {
+      throw new BadRequestException(
+        'Tanggal awal tidak boleh melewati tanggal akhir',
+      );
+    }
     const where = {
       ...(input.status ? { status: input.status } : {}),
       ...(input.area ? { area: { contains: input.area, mode: 'insensitive' as const } } : {}),
