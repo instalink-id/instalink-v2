@@ -4,10 +4,12 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { HealthController } from './health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { IdentityModule } from './modules/identity/identity.module.js';
 
 @Module({
   imports: [
     PrismaModule,
+    IdentityModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
