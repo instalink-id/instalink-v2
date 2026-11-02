@@ -4,45 +4,66 @@ Base URL: `/api/v1`. Response sukses mengembalikan payload endpoint secara
 langsung; request ID tersedia pada header `X-Request-Id`. Error memakai format
 terstruktur `{ code, message, details?, requestId }`. Pagination memakai
 `page`, `pageSize`, `sort`, dan filter tervalidasi. Swagger tersedia di
-environment non-production atau di balik akses admin.
+environment non-production atau di balik akses admin. Request ID dari client
+dibatasi 128 karakter; nilai lebih panjang diganti dengan UUID server sebelum
+dipakai pada response dan audit correlation.
 
-## Identity dan akses
+## Implemented endpoints: Customer Service foundation
+
+Endpoint berikut telah tersedia pada backend:
 
 | Method | Path | Akses |
 | --- | --- | --- |
-| POST | `/auth/login` | public, rate limited |
+| GET | `/health`, `/health/ready` | public |
+| POST | `/auth/login` | public |
+| POST | `/auth/logout` | authenticated + CSRF |
+| GET | `/me` | authenticated |
+| POST | `/public/registrations` | public, validation, idempotency, rate limited |
+| GET | `/registrations` | `customer_service`, `super_admin`, `auditor_viewer` |
+| GET | `/registrations/:id` | `customer_service`, `super_admin`, `auditor_viewer` |
+| PATCH | `/registrations/:id/status` | `customer_service`, `super_admin` + CSRF |
+| POST | `/registrations/:id/follow-ups` | `customer_service`, `super_admin` + CSRF |
+| GET | `/dashboard/registrations/summary` | `customer_service`, `super_admin`, `auditor_viewer` |
+| GET | `/audit-logs` | `super_admin`, `auditor_viewer` |
+
+Registrasi mendukung filter `status`, `area`, `from`, `to`, `page`, dan
+`pageSize`. Status dan follow-up ditegakkan backend. Mutasi staf menggunakan
+session cookie dan header `x-csrf-token` yang harus sama dengan cookie
+`instalink_csrf`; cookie session bernama `instalink_session` dan berstatus
+HttpOnly. Endpoint login mengeluarkan kedua cookie tersebut.
+
+Audit tersedia untuk login berhasil/gagal, logout, registrasi baru, perubahan
+status, dan follow-up. Snapshot audit dan response auditor meredaksi PII.
+Rate limit registrasi saat ini berbasis memori proses dan harus diganti dengan
+mekanisme bersama sebelum deployment multi-instance.
+
+## Planned identity and access endpoints (not implemented)
+
+| Method | Path | Akses |
+| --- | --- | --- |
 | POST | `/auth/refresh` | refresh session |
-| POST | `/auth/logout` | authenticated |
 | POST | `/auth/password/forgot` | public, rate limited |
 | POST | `/auth/password/reset` | reset token |
-| GET | `/me` | authenticated |
 | GET | `/users` | `users:read` |
 | POST | `/users` | `users:write` |
 | PATCH | `/users/:id/roles` | `roles:write` |
 | GET/PATCH | `/approval-policies` | `approval_policy:read/write` |
 
-## Website, pelanggan, cakupan, dan catalog
+Login rate limit, refresh/reset password, manajemen user, dan policy approval
+belum diimplementasikan.
+
+## Planned website, customer, coverage, and catalog endpoints
 
 | Method | Path | Akses |
 | --- | --- | --- |
 | GET | `/public/plans` | public |
 | GET | `/public/coverage-areas` | public |
-| POST | `/public/registrations` | public, anti-abuse |
 | GET/POST/PATCH | `/customers`, `/customers/:id` | customer_service/finance sesuai policy |
 | GET/POST/PATCH | `/service-addresses`, `/service-addresses/:id` | owner/customer_service; perubahan perlu approval bila policy |
 | GET/POST/PATCH | `/coverage-areas`, `/coverage-areas/:id` | `coverage:*` |
 | GET/POST/PATCH | `/plans`, `/plans/:id` | `catalog:*` |
 | GET/POST/PATCH | `/imports`, `/imports/:id` | finance/admin; upload, preview, validate, approve |
 | POST | `/imports/:id/commit` | approver setelah preview dan error review |
-
-## Customer Service dashboard
-
-| Method | Path | Akses |
-| --- | --- | --- |
-| GET | `/dashboard/registrations/summary` | `dashboard:read` |
-| GET | `/registrations`, `/registrations/:id` | `registration:read` |
-| PATCH | `/registrations/:id/status` | `registration:write` |
-| POST | `/registrations/:id/follow-ups` | `registration:write` |
 
 Untuk `auditor_viewer`, API meredaksi nama, kontak, alamat pemasangan,
 koordinat presisi, serta catatan bebas; izin read-only tidak membuka PII.
@@ -73,7 +94,7 @@ koordinat presisi, serta catatan bebas; izin read-only tidak membuka PII.
 | POST | `/approvals/:id/decide` | General Manager atau approver yang ditentukan policy |
 | GET | `/settlements/midtrans` | finance; reconciliation report |
 
-## Support, notifications, reports, audit, dan network
+## Planned support, notifications, reports, and network endpoints
 
 | Method | Path | Akses |
 | --- | --- | --- |
@@ -82,7 +103,6 @@ koordinat presisi, serta catatan bebas; izin read-only tidak membuka PII.
 | GET/POST | `/notifications`, `/notifications/:id/retry` | staff/system |
 | GET | `/portal/notifications` | current customer |
 | GET | `/reports/customers`, `/reports/revenue`, `/reports/payments` | reporting |
-| GET | `/audit-logs` | security/admin, read-only |
 | GET | `/network/devices` | noc_network_engineer/auditor_viewer |
 | POST | `/network/services/:id/provision` | noc_network_engineer, feature flag |
 | POST | `/network/services/:id/suspend` | disabled until payment/business approval |
@@ -93,3 +113,6 @@ diperlukan, audit event,
 idempotency key bila dapat diulang, validasi DTO, dan optimistic/concurrency
 guard bila relevan. Jangan menganggap endpoint internal aman hanya karena
 tidak ditampilkan pada frontend.
+
+Semua route pada bagian berjudul **Planned** di atas belum tersedia pada
+backend saat ini.

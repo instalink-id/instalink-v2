@@ -50,16 +50,27 @@ export class RegistrationsService {
       : null;
     if (existing) return existing;
 
-    return this.prisma.registration.create({
-      data: {
-        ...normalized,
-        idempotencyKey,
-      },
-      select: {
-        id: true,
-        status: true,
-        submittedAt: true,
-      },
+    return this.prisma.$transaction(async (transaction) => {
+      const registration = await transaction.registration.create({
+        data: {
+          ...normalized,
+          idempotencyKey,
+        },
+      });
+      await this.audit.record(
+        {
+          action: AuditAction.REGISTRATION_CREATED,
+          resourceType: 'registration',
+          resourceId: registration.id,
+          after: registration,
+        },
+        transaction,
+      );
+      return {
+        id: registration.id,
+        status: registration.status,
+        submittedAt: registration.submittedAt,
+      };
     });
   }
 

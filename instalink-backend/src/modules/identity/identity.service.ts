@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuditAction } from '@prisma/client';
 import { verify } from 'argon2';
 import type { Request } from 'express';
+import { AuditService } from '../audit/audit.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   SESSION_ABSOLUTE_MS,
@@ -18,14 +20,27 @@ const invalidCredentials = () =>
 
 @Injectable()
 export class IdentityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, correlationId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: email.toLowerCase().trim() },
       include: { roles: { include: { role: true } } },
     });
-    if (!user || user.status !== 'ACTIVE') throw invalidCredentials();
+    if (!user || user.status !== 'ACTIVE') {
+      await this.audit.record({
+        actorId: user?.id,
+        action: AuditAction.LOGIN_FAILED,
+        resourceType: 'identity',
+        resourceId: user?.id,
+        correlationId,
+        after: { outcome: 'failed' },
+      });
+      throw invalidCredentials();
+    }
 
     let valid = false;
     try {
@@ -33,23 +48,47 @@ export class IdentityService {
     } catch {
       valid = false;
     }
-    if (!valid) throw invalidCredentials();
+    if (!valid) {
+      await this.audit.record({
+        actorId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        resourceType: 'identity',
+        resourceId: user.id,
+        correlationId,
+        after: { outcome: 'failed' },
+      });
+      throw invalidCredentials();
+    }
 
     const now = new Date();
     const sessionToken = createToken();
     const csrfToken = createToken();
-    const session = await this.prisma.session.create({
-      data: {
-        userId: user.id,
-        tokenHash: hashToken(sessionToken),
-        csrfTokenHash: hashToken(csrfToken),
-        expiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
-        idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
-      },
-    });
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: now },
+    const session = await this.prisma.$transaction(async (transaction) => {
+      const createdSession = await transaction.session.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(sessionToken),
+          csrfTokenHash: hashToken(csrfToken),
+          expiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
+          idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
+        },
+      });
+      await transaction.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: now },
+      });
+      await this.audit.record(
+        {
+          actorId: user.id,
+          action: AuditAction.LOGIN_SUCCEEDED,
+          resourceType: 'session',
+          resourceId: createdSession.id,
+          correlationId,
+          after: { outcome: 'succeeded' },
+        },
+        transaction,
+      );
+      return createdSession;
     });
     return {
       session,
@@ -84,12 +123,34 @@ export class IdentityService {
     };
   }
 
-  async revoke(request: Request) {
+  async revoke(
+    request: Request & {
+      user?: { session?: { id: string }; user?: { id: string } };
+    },
+    correlationId?: string,
+  ) {
     const token = request.cookies?.instalink_session;
     if (!token) return;
-    await this.prisma.session.updateMany({
-      where: { tokenHash: hashToken(token), revokedAt: null },
-      data: { revokedAt: new Date() },
+    const actorId = request.user?.user?.id;
+    const sessionId = request.user?.session?.id;
+    await this.prisma.$transaction(async (transaction) => {
+      const result = await transaction.session.updateMany({
+        where: { tokenHash: hashToken(token), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (result.count > 0 && actorId && sessionId) {
+        await this.audit.record(
+          {
+            actorId,
+            action: AuditAction.LOGOUT,
+            resourceType: 'session',
+            resourceId: sessionId,
+            correlationId,
+            after: { outcome: 'revoked' },
+          },
+          transaction,
+        );
+      }
     });
   }
 

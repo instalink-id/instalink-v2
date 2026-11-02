@@ -12,7 +12,36 @@
 - Status finansial dan audit bersifat append-only sejauh mungkin. Koreksi
   dilakukan melalui adjustment/reversal, bukan mengubah histori.
 
-## 2. ERD awal
+## 2. Implementasi schema saat ini
+
+Migration Prisma `20261102214000_customer_service_foundation` saat ini membuat
+model `BillingRule`, `User`, `Role`, `UserRole`, `Session`, `Registration`,
+`RegistrationFollowUp`, dan `AuditLog`, beserta enum `UserStatus`,
+`RegistrationStatus`, dan `AuditAction`. Role MVP yang aktif adalah
+`super_admin`, `customer_service`, dan `auditor_viewer`; permission saat ini
+ditentukan oleh policy backend, bukan tabel permission.
+
+`Registration` tetap terpisah dari entitas customer. `idempotencyKey` bersifat
+unik, session token disimpan sebagai hash, dan snapshot audit meredaksi field
+PII. `BillingRule` baru berupa model konfigurasi; workflow subscription,
+invoice, dan pembayaran belum tersedia.
+
+Entitas customer, service address, coverage, plan, survey, installation,
+subscription, invoice, payment, network, import, approval, dan notification
+pada ERD berikut masih merupakan rancangan target, bukan tabel yang sudah
+tersedia.
+
+E2E memakai database PostgreSQL lokal terpisah bernama dengan akhiran `_test`.
+`TEST_DATABASE_URL` harus eksplisit, hanya boleh menunjuk ke loopback, dan
+harus sama dengan `DATABASE_URL` aktif bila variabel tersebut sudah disetel.
+E2E hanya memakai fixture sintetis dan membersihkan record fixture dari
+database test.
+
+Seed development menggunakan `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD`
+yang diberikan pada environment lokal; password plaintext tidak ditulis ke
+database atau repository.
+
+## 3. ERD target (belum seluruhnya diimplementasikan)
 
 ```mermaid
 erDiagram
@@ -44,9 +73,9 @@ erDiagram
     NOTIFICATION ||--o{ NOTIFICATION_ATTEMPT : attempts
 ```
 
-## 3. Entitas utama
+## 4. Entitas target
 
-| Entitas | Kolom penting | Aturan |
+| Entitas target | Kolom penting | Aturan |
 | --- | --- | --- |
 | `users` | id, email, password_hash, status, last_login_at | email unique; password tidak pernah plaintext |
 | `roles`, `permissions`, `user_roles`, `role_permissions` | role dan permission | RBAC granular; jangan hard-code hanya di frontend |
@@ -75,7 +104,7 @@ erDiagram
 | `invoice_adjustments` | invoice_id, type, amount_minor, reason, approval_id, before_after_snapshot | koreksi append-only, tidak menghapus histori |
 | `company_profiles`, `tax_configurations` | legal identity, address, tax identity, effective dates, e-invoice metadata | configurable dan versioned; tidak mengklaim faktur pajak resmi |
 
-## 4. Integritas transaksi
+## 5. Integritas transaksi target
 
 Pembuatan invoice dan item harus satu transaksi. Nomor invoice dibuat backend
 dengan format `INV-YYYYMM-XXXXXX` dan unique constraint. Biaya instalasi gratis,

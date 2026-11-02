@@ -38,10 +38,13 @@ export function configureApp(
   app.use((request: { headers: Record<string, string | undefined> }, response: {
     setHeader: (name: string, value: string) => void;
   }, next: () => void) => {
-    response.setHeader(
-      'X-Request-Id',
-      request.headers['x-request-id']?.trim() || randomUUID(),
-    );
+    const incomingRequestId = request.headers['x-request-id']?.trim();
+    const requestId =
+      incomingRequestId && incomingRequestId.length <= 128
+        ? incomingRequestId
+        : randomUUID();
+    request.headers['x-request-id'] = requestId;
+    response.setHeader('X-Request-Id', requestId);
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader(

@@ -10,15 +10,18 @@ deployment production belum diaktifkan.
   beranda, paket, pemasangan, corporate, portal pelanggan, galeri, berita,
   dan kontak. Data paket, coverage, dan submit form masih sintetis/local-only
   sampai kontrak backend domain tersedia.
-- `instalink-backend/` berisi NestJS REST foundation, health endpoint, Swagger,
-  validation, dan Prisma baseline.
+- `instalink-backend/` berisi NestJS REST API, Prisma/PostgreSQL, session
+  authentication, RBAC MVP, registrasi publik, workflow Customer Service,
+  audit log, health endpoint, dan Swagger.
+- `instalink-frontend/` juga menyediakan dashboard internal pada `/dashboard`
+  yang memakai API backend same-origin.
 - `instalink-infrastructure/` berisi Compose PostgreSQL lokal dan catatan Nginx.
 - Nama produk dan folder memakai prefix `instalink-`; keputusan rename ke
   `isp-*` tidak berlaku.
 - Node.js dan npm tersedia di environment pemeriksaan.
-- Docker, Docker Compose, pnpm, dan psql belum tersedia di environment
-  pemeriksaan.
-- Tidak ada deployment, akses server produksi, kredensial nyata, atau data
+- PostgreSQL native Windows direkomendasikan untuk development lokal; Docker
+  tidak diperlukan untuk backend slice saat ini.
+- Tidak ada deployment, koneksi ke server produksi, kredensial nyata, atau data
   pelanggan nyata yang digunakan.
 
 ## Menjalankan fondasi lokal
@@ -69,25 +72,82 @@ npm run build
 ```
 
 Portal pelanggan dan formulir publik saat ini adalah permukaan UI dengan
-simulasi lokal. Login, pengajuan pemasangan, coverage API, berita dinamis,
-notifikasi, tagihan, serta pembayaran baru boleh dihubungkan ke backend
-setelah modul identity dan domain API selesai.
+simulasi lokal. Login portal pelanggan, pengajuan pemasangan dari website,
+coverage API, berita dinamis, notifikasi, tagihan, serta pembayaran belum
+terhubung ke backend. Login dashboard internal `/dashboard/login` memakai
+session backend.
 
-Backend:
+### PostgreSQL native Windows
+
+Siapkan dua database lokal yang terpisah: `instalink` untuk development dan
+`instalink_test` untuk E2E. Gunakan role PostgreSQL lokal Anda; contoh berikut
+memakai role `postgres` dan PostgreSQL meminta password sesuai konfigurasi
+lokal:
+
+```powershell
+createdb -U postgres instalink
+createdb -U postgres instalink_test
+```
+
+### Menjalankan backend
 
 ```powershell
 Set-Location .\instalink-backend
-Copy-Item .env.example .env
-npm run start:dev
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Backend tersedia di `http://localhost:3001`, health check di
-`/api/v1/health`, dan Swagger di `/docs`. Database belum wajib untuk endpoint
-health; Compose PostgreSQL lokal dapat dinyalakan setelah Docker tersedia.
+Atur `DATABASE_URL` pada `.env` lokal agar menunjuk ke database development
+`instalink`. File `.env` tidak boleh dikomit. Terapkan migration dan buat akun
+Super Admin sintetis dengan environment variable lokal yang tidak disimpan di
+repository:
 
 ```powershell
-docker compose -f .\instalink-infrastructure\compose\compose.dev.yml up -d
+npm.cmd exec -- prisma migrate deploy
+$env:SEED_ADMIN_EMAIL = 'admin@example.test'
+$env:SEED_ADMIN_PASSWORD = '<password-lokal-yang-anda-tentukan>'
+npm.cmd exec -- prisma db seed
+Remove-Item Env:SEED_ADMIN_EMAIL, Env:SEED_ADMIN_PASSWORD
+npm.cmd run start:dev
 ```
+
+API tersedia di `http://localhost:3001`, health endpoint di
+`/api/v1/health`, dan Swagger di `/docs`. Dashboard tersedia melalui frontend
+di `http://localhost:3000/dashboard`.
+
+Untuk E2E, set `TEST_DATABASE_URL` hanya ke database lokal `instalink_test`.
+Test menolak host non-loopback, nama database tanpa akhiran `_test`, atau URL
+yang berbeda dari `DATABASE_URL` aktif. Migration pada database test harus
+diterapkan sebelum menjalankan. Gunakan URL lokal yang sama pada kedua
+environment variable:
+
+```powershell
+$env:DATABASE_URL = '<URL-lokal-untuk-database-instalink_test>'
+npm.cmd exec -- prisma migrate deploy
+Remove-Item Env:DATABASE_URL
+$env:TEST_DATABASE_URL = '<URL-lokal-untuk-database-instalink_test>'
+npm.cmd run test:e2e
+Remove-Item Env:TEST_DATABASE_URL
+```
+
+Validasi backend:
+
+```powershell
+npm.cmd run lint
+npm.cmd test
+npm.cmd run test:e2e
+npm.cmd run build
+```
+
+Docker Compose tetap tersedia untuk kebutuhan lain, tetapi bukan prasyarat
+untuk development native ini.
+
+### Cakupan backend saat ini
+
+Fondasi yang sudah berjalan meliputi login/logout dashboard internal, `/me`,
+pengajuan registrasi publik, daftar/filter/detail registrasi staf, workflow
+status dan follow-up, ringkasan dashboard, serta audit log. Billing, payment,
+customer portal, role management, reset password, dan integrasi jaringan belum
+diimplementasikan; lihat [docs/api.md](docs/api.md) untuk status setiap route.
 
 ## Rancangan
 

@@ -2,16 +2,29 @@
 
 ## 1. Authentication dan RBAC
 
-- Login memakai password hash Argon2id (parameter ditetapkan melalui benchmark
-  server), session refresh token yang di-rotate dan disimpan hashed.
-- Cookie production: `Secure`, `HttpOnly`, `SameSite=Lax/Strict`, CSRF
-  protection untuk cookie-authenticated mutations.
-- Access token/session berumur pendek; logout dan reset password mencabut
-  session aktif.
-- Role minimum: `general_manager`, `super_admin`, `finance`, `customer_service`,
-  `noc_network_engineer`, `field_technician`, `auditor_viewer`, `customer`.
-- Permission dicek di guard/policy backend pada resource dan tenant/customer
-  ownership; UI hiding bukan security control.
+- **Implemented:** Login memverifikasi password hash Argon2id dan memberi
+  response generik untuk kredensial tidak valid. Token session opaque disimpan
+  sebagai hash di database; session memiliki idle timeout 30 menit dan absolute
+  lifetime 8 jam. Logout mencabut session aktif.
+- **Implemented:** Cookie session `HttpOnly`; cookie CSRF dapat dibaca frontend
+  untuk mengirim header `x-csrf-token`. CSRF ditegakkan pada logout serta
+  mutation status/follow-up registrasi. Production cookie menggunakan `Secure`;
+  konfigurasi final harus diuji pada deployment TLS.
+- **Implemented:** Permission backend untuk `super_admin`,
+  `customer_service`, dan `auditor_viewer`. Auditor read-only dan response
+  registrasi/audit meredaksi PII.
+- **Implemented:** Audit log mencatat login berhasil/gagal, logout, registrasi
+  baru, perubahan status, dan follow-up; snapshot PII di-redact.
+- **Belum diimplementasikan:** refresh session endpoint, reset password,
+  undangan user, role management, login rate limit, dan MFA. Jangan membuka
+  layanan ke UAT atau produksi sebelum kontrol yang diwajibkan untuk akses
+  admin diselesaikan.
+- Rate limit registrasi publik saat ini memakai counter in-memory per proses
+  (10 request per menit). Ini bukan limiter terdistribusi dan harus diganti
+  sebelum deployment multi-instance atau paparan publik.
+- Role arsitektur yang belum aktif mencakup `general_manager`, `finance`,
+  `noc_network_engineer`, `field_technician`, dan `customer`.
+- Permission dicek di guard/policy backend; UI hiding bukan security control.
 - MFA untuk admin dan network/billing roles menjadi acceptance criterion
   sebelum production.
 - General Manager menjadi approver untuk diskon khusus, refund, billing
@@ -135,6 +148,10 @@ diganti tanpa mengubah modul customer atau billing.
   health/readiness checks, queue retry/dead-letter behavior.
 - CI blocks merge on formatting, typecheck, lint, tests, migration validation,
   and secret scan. Use synthetic fixtures only.
+- E2E lokal memakai PostgreSQL terpisah dengan `TEST_DATABASE_URL` eksplisit.
+  URL harus loopback, nama database berakhiran `_test`, dan tidak boleh
+  berbeda dari `DATABASE_URL` aktif. Test menolak koneksi remote dan hanya
+  membersihkan record pada database test yang sudah lolos guard tersebut.
 
 ## 6. Backup dan pemulihan
 

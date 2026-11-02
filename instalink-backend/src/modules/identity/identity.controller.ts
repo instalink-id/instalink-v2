@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Post,
   Req,
   Res,
@@ -25,8 +26,16 @@ export class IdentityController {
   constructor(private readonly identity: IdentityService) {}
 
   @Post('login')
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.identity.login(dto.email, dto.password);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) response: Response,
+    @Headers('x-request-id') correlationId?: string,
+  ) {
+    const result = await this.identity.login(
+      dto.email,
+      dto.password,
+      correlationId,
+    );
     const options = createSessionCookieOptions();
     response.cookie(SESSION_COOKIE_NAME, result.sessionToken, options);
     response.cookie(CSRF_COOKIE_NAME, result.csrfToken, {
@@ -38,8 +47,17 @@ export class IdentityController {
 
   @Post('logout')
   @UseGuards(SessionGuard, CsrfGuard)
-  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    await this.identity.revoke(request);
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Headers('x-request-id') correlationId?: string,
+  ) {
+    await this.identity.revoke(
+      request as Request & {
+        user?: { session?: { id: string }; user?: { id: string } };
+      },
+      correlationId,
+    );
     response.clearCookie(SESSION_COOKIE_NAME, createSessionCookieOptions());
     response.clearCookie(CSRF_COOKIE_NAME, { path: '/' });
     return { status: 'ok' };
