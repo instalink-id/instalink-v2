@@ -5,6 +5,7 @@ import {
   Headers,
   Param,
   Post,
+  Patch,
   Query,
   Req,
   UseGuards,
@@ -17,6 +18,8 @@ import { MVP_PERMISSIONS } from '../access-control/permissions.js';
 import { PermissionGuard } from '../access-control/permission.guard.js';
 import { SessionGuard } from '../identity/guards/session.guard.js';
 import { CreateRegistrationDto } from './dto/create-registration.dto.js';
+import { ChangeRegistrationStatusDto } from './dto/change-registration-status.dto.js';
+import { CreateFollowUpDto } from './dto/create-follow-up.dto.js';
 import { RegistrationsService } from './registrations.service.js';
 
 @ApiTags('registrations')
@@ -55,5 +58,38 @@ export class RegistrationsController {
   @RequirePermissions(MVP_PERMISSIONS.registrationRead)
   findOne(@Param('id') id: string) {
     return this.registrations.findOne(id);
+  }
+
+  @Patch('registrations/:id/status')
+  @UseGuards(SessionGuard, PermissionGuard)
+  @RequirePermissions(MVP_PERMISSIONS.registrationWrite)
+  changeStatus(
+    @Param('id') id: string,
+    @Body() dto: ChangeRegistrationStatusDto,
+    @Req() request: Request & { user?: { user: { id: string } } },
+    @Headers('x-request-id') correlationId?: string,
+  ) {
+    return this.registrations.changeStatus(id, dto.status, request.user!.user.id, {
+      coverageConfirmed: dto.coverageConfirmed,
+      reason: dto.reason,
+      correlationId,
+    });
+  }
+
+  @Post('registrations/:id/follow-ups')
+  @UseGuards(SessionGuard, PermissionGuard)
+  @RequirePermissions(MVP_PERMISSIONS.registrationWrite)
+  addFollowUp(
+    @Param('id') id: string,
+    @Body() dto: CreateFollowUpDto,
+    @Req() request: Request & { user?: { user: { id: string } } },
+    @Headers('x-request-id') correlationId?: string,
+  ) {
+    return this.registrations.addFollowUp(
+      id,
+      request.user!.user.id,
+      dto.note,
+      correlationId,
+    );
   }
 }

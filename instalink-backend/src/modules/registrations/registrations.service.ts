@@ -5,9 +5,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { RegistrationStatus } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import type { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { normalizeRegistrationInput, type RegistrationInput } from './registration-normalizer.js';
+import { RegistrationStatusPolicy } from './registration-status.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const WINDOW_MS = 60 * 1000;
 const MAX_PER_WINDOW = 10;
@@ -16,7 +19,10 @@ const MAX_PER_WINDOW = 10;
 export class RegistrationsService {
   private readonly attempts = new Map<string, { startedAt: number; count: number }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async createPublic(input: RegistrationInput, request: Request, idempotencyKey?: string) {
     const key = request.ip || 'unknown';
@@ -119,6 +125,72 @@ export class RegistrationsService {
           select: { id: true, note: true, createdAt: true, actorId: true },
         },
       },
+    });
+  }
+
+  async changeStatus(
+    id: string,
+    status: RegistrationStatus,
+    actorId: string,
+    context: { coverageConfirmed?: boolean; reason?: string; correlationId?: string },
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      const current = await transaction.registration.findUniqueOrThrow({ where: { id } });
+      const decision = RegistrationStatusPolicy.canTransition(current.status, status, context);
+      if (!decision.allowed) throw new ConflictException(decision.reason);
+      const updated = await transaction.registration.update({
+        where: { id },
+        data: {
+          status,
+          ...(status === 'DISETUJUI'
+            ? {
+                coverageConfirmedAt: context.coverageConfirmed ? new Date() : undefined,
+                coverageConfirmedById: context.coverageConfirmed ? actorId : undefined,
+                approvalReason: context.reason?.trim(),
+              }
+            : {}),
+        },
+      });
+      await this.audit.record(
+        {
+          actorId,
+          action: AuditAction.REGISTRATION_STATUS_CHANGED,
+          resourceType: 'registration',
+          resourceId: id,
+          correlationId: context.correlationId,
+          before: current,
+          after: updated,
+        },
+        transaction,
+      );
+      return { id: updated.id, status: updated.status, updatedAt: updated.updatedAt };
+    });
+  }
+
+  async addFollowUp(
+    registrationId: string,
+    actorId: string,
+    note: string,
+    correlationId?: string,
+  ) {
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.registration.findUniqueOrThrow({ where: { id: registrationId } });
+      const followUp = await transaction.registrationFollowUp.create({
+        data: { registrationId, actorId, note: note.trim() },
+        select: { id: true, registrationId: true, note: true, createdAt: true },
+      });
+      await this.audit.record(
+        {
+          actorId,
+          action: AuditAction.FOLLOW_UP_CREATED,
+          resourceType: 'registration_follow_up',
+          resourceId: followUp.id,
+          correlationId,
+          after: followUp,
+        },
+        transaction,
+      );
+      return followUp;
     });
   }
 }
