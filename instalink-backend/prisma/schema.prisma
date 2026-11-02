@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model BillingRule {
+  id                     String   @id @default(uuid()) @db.Uuid
+  currency               String   @default("IDR") @db.VarChar(3)
+  timezone               String   @default("Asia/Jakarta")
+  graceDays              Int      @default(5)
+  prorationEnabled       Boolean  @default(true)
+  depositEnabled         Boolean  @default(false)
+  partialPaymentEnabled  Boolean  @default(false)
+  penaltyEnabled         Boolean  @default(false)
+  autoSuspendEnabled     Boolean  @default(false)
+  autoTerminationEnabled Boolean  @default(false)
+  effectiveFrom          DateTime
+  effectiveTo            DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([effectiveFrom])
+}
