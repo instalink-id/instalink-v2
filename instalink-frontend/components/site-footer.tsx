@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { publicContact } from "../lib/public-content";
 
 export function SiteFooter() {
   return (
@@ -24,10 +25,10 @@ export function SiteFooter() {
         <div>
           <h2 className="font-semibold text-slate-950">Hubungi Kami</h2>
           <div className="mt-4 grid gap-2 text-sm text-slate-600">
-            <a href="mailto:sindi@instalink.id">sindi@instalink.id</a>
-            <a href="https://wa.me/6285139514123" target="_blank" rel="noreferrer">Admin: +62 851-3951-4123 ↗</a>
-            <a href="https://wa.me/62811920800" target="_blank" rel="noreferrer">Teknisi: 0811-920-800 ↗</a>
-            <span>Setiap hari, 08.00–17.00 WIB</span>
+            <a href={`mailto:${publicContact.email}`}>{publicContact.email}</a>
+            <a href={`https://wa.me/${publicContact.adminWhatsApp}`} target="_blank" rel="noreferrer">Admin: {publicContact.adminDisplay} ↗</a>
+            <a href={`https://wa.me/${publicContact.technicianWhatsApp}`} target="_blank" rel="noreferrer">Teknisi: {publicContact.technicianDisplay} ↗</a>
+            <span>{publicContact.operatingHours}</span>
           </div>
         </div>
       </div>

@@ -10,3 +10,4 @@ coverage/
 *.key
 *.crt
 .worktrees/
+.superpowers/

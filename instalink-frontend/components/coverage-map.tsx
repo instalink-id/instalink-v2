@@ -21,6 +21,7 @@ const DEFAULT_LOCATION: CustomerLocation = {
   label: "Lokasi awal peta",
 };
 const COVERAGE_RADIUS_METERS = 50;
+const MAX_KML_SIZE_BYTES = 2 * 1024 * 1024;
 
 const customerIcon = L.divIcon({
   className: "",
@@ -96,6 +97,7 @@ export function CoverageMap() {
   const [address, setAddress] = useState("");
   const [status, setStatus] = useState("Memuat jalur jaringan...");
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [coverageDataAvailable, setCoverageDataAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetch("/coverage.kml")
@@ -105,12 +107,16 @@ export function CoverageMap() {
       })
       .then((parsedLines) => {
         setLines(parsedLines);
-        setStatus(`${parsedLines.length} jalur jaringan ditampilkan.`);
+        setCoverageDataAvailable(parsedLines.length > 0);
+        setStatus(parsedLines.length > 0 ? `${parsedLines.length} jalur jaringan ditampilkan sebagai pemeriksaan indikatif.` : "Jalur KML tidak memiliki jalur yang dapat diperiksa.");
       })
-      .catch(() => setStatus("Unggah file KML jalur kabel untuk menampilkan coverage."));
+      .catch(() => {
+        setCoverageDataAvailable(false);
+        setStatus("Unggah file KML jalur kabel untuk menampilkan coverage.");
+      });
   }, []);
 
-  const available = useMemo(
+  const indicativeCoverage = useMemo(
     () => location !== null && isWithinCoverage(location, lines),
     [lines, location],
   );
@@ -118,7 +124,7 @@ export function CoverageMap() {
   const selectLocation = (nextLocation: CustomerLocation) => {
     setLocation(nextLocation);
     setHasCheckedCoverage(true);
-    setStatus(lines.length > 0 ? "Lokasi berhasil diperiksa." : "Jalur KML belum dimuat.");
+    setStatus(lines.length > 0 ? "Lokasi berhasil diperiksa secara indikatif." : "Jalur KML belum dimuat; hasil belum dapat diperiksa.");
   };
 
   const useDeviceLocation = () => {
@@ -159,12 +165,18 @@ export function CoverageMap() {
   const uploadKml = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_KML_SIZE_BYTES) {
+      setStatus("Ukuran KML terlalu besar. Gunakan file maksimal 2 MB.");
+      event.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const parsedLines = parseKml(String(reader.result));
         if (parsedLines.length === 0) throw new Error("KML tidak memiliki geometry LineString.");
         setLines(parsedLines);
+        setCoverageDataAvailable(true);
         setStatus(`${parsedLines.length} jalur jaringan berhasil dimuat.`);
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "File KML tidak dapat dibaca.");
@@ -192,8 +204,9 @@ export function CoverageMap() {
         <label className="cursor-pointer font-semibold text-cyan-700">Unggah KML<input type="file" accept=".kml,application/vnd.google-earth.kml+xml" onChange={uploadKml} className="sr-only" /></label>
       </div>
       {location && (
-        <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${available ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
-          {location.label} — {available ? "Tersedia dalam radius 50 meter dari jalur kabel." : "Belum tersedia dalam radius 50 meter dari jalur kabel."}
+        <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${indicativeCoverage ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+          {location.label} — {coverageDataAvailable === false ? "Coverage belum dapat diperiksa karena data jalur belum tersedia." : indicativeCoverage ? "Terindikasi dekat jalur kabel dalam radius 50 meter." : "Belum terindikasi dekat jalur kabel dalam radius 50 meter."}
+          <span className="mt-1 block text-xs font-normal">Hasil ini bukan keputusan akhir; konfirmasi alamat diperlukan.</span>
         </div>
       )}
       <div className="relative z-0 h-[28rem] overflow-hidden rounded-2xl border border-slate-200">
@@ -204,7 +217,7 @@ export function CoverageMap() {
           {location && <><Marker position={[location.lat, location.lon]} icon={customerIcon} /><Circle center={[location.lat, location.lon]} radius={COVERAGE_RADIUS_METERS} pathOptions={{ color: "#dc2626", fillColor: "#dc2626", fillOpacity: 0.08 }} /></>}
         </MapContainer>
       </div>
-      <p className="text-xs text-slate-500">Garis biru menunjukkan jalur kabel dari KML. Titik merah menunjukkan <strong>Perangkat Anda</strong>; coverage dihitung maksimal 50 meter dari garis kabel.</p>
+      <p className="text-xs text-slate-500">Garis biru menunjukkan jalur kabel dari KML. Titik merah menunjukkan <strong>Perangkat Anda</strong>; pemeriksaan indikatif memakai radius 50 meter dan tetap perlu konfirmasi tim.</p>
     </div>
   );
 }
