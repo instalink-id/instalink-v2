@@ -36,6 +36,19 @@ describe('registration role serializer', () => {
     });
   });
 
+  it('gives General Manager the same redacted read access as an auditor', () => {
+    expect(
+      serializeRegistrationForRoles(record, ['general_manager']),
+    ).toMatchObject({
+      fullName: '[REDACTED]',
+      email: '[REDACTED]',
+      installationAddress: '[REDACTED]',
+      latitude: null,
+      longitude: null,
+      notes: '[REDACTED]',
+    });
+  });
+
   it('preserves operational details for customer service', () => {
     expect(serializeRegistrationForRoles(record, ['customer_service'])).toEqual(
       record,

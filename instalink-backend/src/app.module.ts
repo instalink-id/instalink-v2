@@ -10,6 +10,7 @@ import { AccessControlModule } from './modules/access-control/access-control.mod
 import { RegistrationsModule } from './modules/registrations/registrations.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
     RegistrationsModule,
     AuditModule,
     DashboardModule,
+    UsersModule,
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,

@@ -1,11 +1,19 @@
 import { hash } from 'argon2';
 import { PrismaClient } from '@prisma/client';
+import { pathToFileURL } from 'node:url';
+import { ROLE_CATALOG } from '../src/modules/access-control/permissions.js';
 
-const prisma = new PrismaClient();
+type SeedEnvironment = Pick<
+  NodeJS.ProcessEnv,
+  'SEED_ADMIN_EMAIL' | 'SEED_ADMIN_PASSWORD'
+>;
 
-async function main() {
-  const email = process.env.SEED_ADMIN_EMAIL;
-  const password = process.env.SEED_ADMIN_PASSWORD;
+export async function seedRolesAndAdmin(
+  prisma: Pick<PrismaClient, 'role' | 'user'>,
+  env: SeedEnvironment = process.env,
+) {
+  const email = env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = env.SEED_ADMIN_PASSWORD;
 
   if (!email || !password) {
     throw new Error(
@@ -13,33 +21,47 @@ async function main() {
     );
   }
 
-  const role = await prisma.role.upsert({
-    where: { code: 'super_admin' },
-    update: { name: 'Super Admin' },
-    create: { code: 'super_admin', name: 'Super Admin' },
-  });
-  const user = await prisma.user.upsert({
+  const roles = await Promise.all(
+    ROLE_CATALOG.map(({ code, name }) =>
+      prisma.role.upsert({
+        where: { code },
+        update: { name },
+        create: { code, name },
+      }),
+    ),
+  );
+  const superAdmin = roles.find(({ code }) => code === 'super_admin');
+  if (!superAdmin) throw new Error('Super Admin role is missing from the catalog');
+
+  await prisma.user.upsert({
     where: { email: email.toLowerCase().trim() },
-    update: { passwordHash: await hash(password), status: 'ACTIVE' },
+    update: {},
     create: {
-      email: email.toLowerCase().trim(),
+      email,
       passwordHash: await hash(password),
       status: 'ACTIVE',
+      mustChangePassword: false,
+      passwordChangeExpiresAt: null,
+      roles: { create: { role: { connect: { id: superAdmin.id } } } },
     },
-  });
-
-  await prisma.userRole.upsert({
-    where: { userId_roleId: { userId: user.id, roleId: role.id } },
-    update: {},
-    create: { userId: user.id, roleId: role.id },
   });
 }
 
-main()
-  .catch((error) => {
+async function main() {
+  const prisma = new PrismaClient();
+  try {
+    await seedRolesAndAdmin(prisma, process.env);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  void main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
+}

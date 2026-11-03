@@ -35,6 +35,28 @@ describe('audit redaction', () => {
     });
   });
 
+  it('redacts credentials and session secrets from snapshots', () => {
+    expect(
+      redactAuditSnapshot({
+        email: 'admin@example.test',
+        password: 'temporary-password',
+        passwordHash: 'argon2-hash',
+        temporaryPassword: 'one-time-password',
+        sessionToken: 'session-secret',
+        csrfToken: 'csrf-secret',
+        status: 'ACTIVE',
+      }),
+    ).toEqual({
+      email: '[REDACTED]',
+      password: '[REDACTED]',
+      passwordHash: '[REDACTED]',
+      temporaryPassword: '[REDACTED]',
+      sessionToken: '[REDACTED]',
+      csrfToken: '[REDACTED]',
+      status: 'ACTIVE',
+    });
+  });
+
   it('redacts existing audit snapshots again when reading them', async () => {
     const prisma = {
       $transaction: (operations: Promise<unknown>[]) => Promise.all(operations),

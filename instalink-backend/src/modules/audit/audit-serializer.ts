@@ -8,6 +8,13 @@ const redactedFields = new Set([
   'notes',
   'approvalReason',
   'note',
+  'password',
+  'passwordHash',
+  'temporaryPassword',
+  'sessionToken',
+  'csrfToken',
+  'token',
+  'tokenHash',
 ]);
 
 function redactValue(value: unknown): unknown {
