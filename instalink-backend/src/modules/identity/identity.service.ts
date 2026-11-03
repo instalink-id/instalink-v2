@@ -78,6 +78,16 @@ export class IdentityService {
     const sessionToken = createToken();
     const csrfToken = createToken();
     const session = await this.prisma.$transaction(async (transaction) => {
+      const updatedUser = await transaction.user.updateMany({
+        where: {
+          id: user.id,
+          passwordHash: user.passwordHash,
+          status: 'ACTIVE',
+        },
+        data: { lastLoginAt: now },
+      });
+      if (updatedUser.count !== 1) return null;
+
       const createdSession = await transaction.session.create({
         data: {
           userId: user.id,
@@ -86,10 +96,6 @@ export class IdentityService {
           expiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
           idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
         },
-      });
-      await transaction.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: now },
       });
       await this.audit.record(
         {
@@ -104,6 +110,18 @@ export class IdentityService {
       );
       return createdSession;
     });
+    if (!session) {
+      await this.audit.record({
+        actorId: user.id,
+        action: AuditAction.LOGIN_FAILED,
+        resourceType: 'identity',
+        resourceId: user.id,
+        correlationId,
+        after: { outcome: 'failed' },
+      });
+      throw invalidCredentials();
+    }
+
     return {
       session,
       sessionToken,
