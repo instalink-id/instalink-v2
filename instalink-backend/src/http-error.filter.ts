@@ -12,6 +12,11 @@ type HttpResponse = {
   getHeader: (name: string) => string | number | string[] | undefined;
 };
 
+const exposedExceptionCodes = new Set([
+  'PASSWORD_CHANGE_REQUIRED',
+  'TEMPORARY_PASSWORD_EXPIRED',
+]);
+
 function errorCode(status: number) {
   if (status === HttpStatus.NOT_FOUND) return 'NOT_FOUND';
   if (status === HttpStatus.BAD_REQUEST) return 'BAD_REQUEST';
@@ -27,6 +32,17 @@ export class HttpErrorFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<HttpResponse>();
     const status = exception.getStatus();
     const exceptionResponse = exception.getResponse();
+    const exceptionCode =
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null &&
+      'code' in exceptionResponse &&
+      typeof exceptionResponse.code === 'string'
+        ? exceptionResponse.code
+        : undefined;
+    const code =
+      exceptionCode && exposedExceptionCodes.has(exceptionCode)
+        ? exceptionCode
+        : errorCode(status);
     const message =
       typeof exceptionResponse === 'object' &&
       exceptionResponse !== null &&
@@ -35,7 +51,7 @@ export class HttpErrorFilter implements ExceptionFilter {
         : exception.message;
 
     response.status(status).json({
-      code: errorCode(status),
+      code,
       message,
       requestId: response.getHeader('X-Request-Id'),
     });

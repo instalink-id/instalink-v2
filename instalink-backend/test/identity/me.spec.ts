@@ -14,6 +14,7 @@ describe('current user endpoint response', () => {
           id: 'staff-id',
           email: 'staff@example.com',
           roles: ['customer_service'],
+          mustChangePassword: false,
         },
       },
     };
@@ -24,6 +25,7 @@ describe('current user endpoint response', () => {
         id: 'staff-id',
         email: 'staff@example.com',
         roles: ['customer_service'],
+        mustChangePassword: false,
       },
     });
   });

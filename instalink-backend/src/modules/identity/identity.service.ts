@@ -1,9 +1,14 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuditAction } from '@prisma/client';
-import { verify } from 'argon2';
+import { hash, verify } from 'argon2';
 import type { Request } from 'express';
 import { AuditService } from '../audit/audit.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { isTemporaryPasswordExpired } from './password-policy.js';
 import {
   SESSION_ABSOLUTE_MS,
   SESSION_IDLE_MS,
@@ -14,9 +19,14 @@ import {
 
 const invalidCredentials = () =>
   new UnauthorizedException({
-    code: 'INVALID_CREDENTIALS',
+    code: 'UNAUTHORIZED',
     message: 'Email atau password tidak valid',
   });
+
+export type PasswordChangePrincipal = {
+  session: { id: string; user: { id: string; passwordHash: string } };
+  user: { id: string };
+};
 
 @Injectable()
 export class IdentityService {
@@ -48,7 +58,11 @@ export class IdentityService {
     } catch {
       valid = false;
     }
-    if (!valid) {
+    if (
+      !valid ||
+      (user.mustChangePassword &&
+        isTemporaryPasswordExpired(user.passwordChangeExpiresAt))
+    ) {
       await this.audit.record({
         actorId: user.id,
         action: AuditAction.LOGIN_FAILED,
@@ -123,6 +137,70 @@ export class IdentityService {
     };
   }
 
+  async changePassword(
+    principal: PasswordChangePrincipal,
+    currentPassword: string,
+    newPassword: string,
+    correlationId?: string,
+  ) {
+    let valid = false;
+    try {
+      valid = await verify(principal.session.user.passwordHash, currentPassword);
+    } catch {
+      valid = false;
+    }
+    if (!valid) {
+      throw new UnauthorizedException({
+        code: 'CURRENT_PASSWORD_INVALID',
+        message: 'Kata sandi saat ini tidak valid',
+      });
+    }
+
+    const now = new Date();
+    const passwordHash = await hash(newPassword);
+    await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.user.updateMany({
+        where: {
+          id: principal.user.id,
+          passwordHash: principal.session.user.passwordHash,
+        },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          passwordChangeExpiresAt: null,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException({
+          code: 'PASSWORD_CHANGED_CONCURRENTLY',
+          message: 'Kata sandi sudah berubah; silakan masuk kembali',
+        });
+      }
+
+      await transaction.session.updateMany({
+        where: {
+          userId: principal.user.id,
+          id: { not: principal.session.id },
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      });
+      await this.audit.record(
+        {
+          actorId: principal.user.id,
+          action: AuditAction.USER_PASSWORD_CHANGED,
+          resourceType: 'user',
+          resourceId: principal.user.id,
+          correlationId,
+          after: { passwordChanged: true },
+        },
+        transaction,
+      );
+    });
+
+    return { status: 'ok' };
+  }
+
   async revoke(
     request: Request & {
       user?: { session?: { id: string }; user?: { id: string } };
@@ -157,12 +235,14 @@ export class IdentityService {
   private serializeUser(user: {
     id: string;
     email: string;
+    mustChangePassword: boolean;
     roles: Array<{ role: { code: string } }>;
   }) {
     return {
       id: user.id,
       email: user.email,
       roles: user.roles.map(({ role }) => role.code),
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

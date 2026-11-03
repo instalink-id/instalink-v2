@@ -164,7 +164,19 @@ describe('registration list API filters and role serialization', () => {
         authenticate: (incoming: Request) => {
           const role = incoming.header('x-test-role');
           if (!role) throw new UnauthorizedException('Authentication required');
-          return { user: { id: 'staff-id', roles: [role] } };
+          return {
+            session: {
+              user: {
+                mustChangePassword: false,
+                passwordChangeExpiresAt: null,
+              },
+            },
+            user: {
+              id: 'staff-id',
+              roles: [role],
+              mustChangePassword: false,
+            },
+          };
         },
       })
       .compile();

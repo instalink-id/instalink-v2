@@ -233,6 +233,7 @@ describe('customer service registration flow', () => {
       id: customerServiceId,
       email: staffEmail,
       roles: ['customer_service'],
+      mustChangePassword: false,
     });
 
     const list = await customerService

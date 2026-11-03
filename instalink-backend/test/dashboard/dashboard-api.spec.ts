@@ -110,7 +110,19 @@ describe('dashboard registrations summary API', () => {
         authenticate: (incoming: Request) => {
           const role = incoming.header('x-test-role');
           if (!role) throw new UnauthorizedException('Authentication required');
-          return { user: { id: 'staff-1', roles: [role] } };
+          return {
+            session: {
+              user: {
+                mustChangePassword: false,
+                passwordChangeExpiresAt: null,
+              },
+            },
+            user: {
+              id: 'staff-1',
+              roles: [role],
+              mustChangePassword: false,
+            },
+          };
         },
       })
       .compile();
