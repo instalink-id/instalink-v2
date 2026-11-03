@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { validateEnvironment } from './config/environment.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { HealthController } from './health.controller.js';
@@ -22,6 +23,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
       isGlobal: true,
       cache: true,
       envFilePath: ['.env.local', '.env'],
+      validate: validateEnvironment,
     }),
   ],
   controllers: [AppController, HealthController],
