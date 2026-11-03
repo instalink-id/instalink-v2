@@ -2,29 +2,40 @@
 
 ## Kondisi environment yang diperiksa
 
-Repository hanya berisi folder dan dokumen kosong. Node.js `v24.22.0` dan npm
-`11.19.1` tersedia. pnpm, Docker, Docker Compose, dan psql belum tersedia.
-Tidak ada instalasi yang dilakukan pada tahap desain ini.
+Repository kini berisi frontend Next.js, backend NestJS/Prisma, infrastruktur,
+dan dokumentasi arsitektur. Backend memakai PostgreSQL melalui `DATABASE_URL`;
+E2E diwajibkan memakai database lokal loopback dengan nama berakhiran `_test`.
+Tidak ada koneksi ke production database, deployment, atau kredensial nyata
+dalam fondasi ini. Docker Compose tersedia untuk PostgreSQL lokal tetapi tidak
+menjadi prasyarat bagi development native Windows.
+
+Fondasi platform, login/session, permission MVP, audit log, user administration,
+Customer Service registration API, dan dashboard terkait sudah tersedia.
+Master data pelanggan, billing, pembayaran, provisioning jaringan, dan
+deployment production masih menunggu keputusan/dependensi domain.
 
 ## Tahapan realistis
 
 ### Fase 0 - keputusan dan bootstrap
 
-Setujui dokumen arsitektur, gunakan nama produk dan folder **Instalink**,
-pilih Node LTS, package manager, provider email/notification, domain strategy,
-dan environment matrix. Siapkan
-`.env.example`, quality gates, branch policy, dan synthetic seed data.
+**Selesai sebagian:** dokumen arsitektur dan nama folder/product telah
+disetujui; environment contract, `.env.example`, quality checks, dan synthetic
+seed tersedia. Pemilihan provider email/notification dan keputusan domain yang
+masih terbuka tercatat pada tabel owner/decision gate di bawah.
 
 ### Fase 1 - platform foundation
 
-Scaffold frontend/backend/infrastructure terpisah, health endpoints, config
-validation, logging, error envelope, OpenAPI, PostgreSQL Compose lokal, Prisma
-migrations, CI lint/typecheck/test, dan baseline Nginx development.
+**Selesai untuk fondasi MVP:** frontend/backend/infrastructure terpisah, health
+endpoints, validasi konfigurasi, error envelope, OpenAPI, PostgreSQL/Prisma,
+migrations, serta lint/test/build lokal. CI dan baseline Nginx production-ready
+tetap menjadi hardening work.
 
 ### Fase 2 - identity dan master data
 
-Implement login/session/reset, RBAC, audit log, users, customers, addresses,
-coverage areas, plans, public pages, dan customer registration intake.
+**Selesai sebagian:** login/logout/session, password change, RBAC MVP, audit
+log, admin users, dan registration intake tersedia. Self-service recovery,
+MFA, customer/address/coverage/plan master data, serta domain approval masih
+belum diimplementasikan.
 
 ### Fase 3 - operasi lapangan dan layanan
 
@@ -102,6 +113,19 @@ terpisah.
   termination otomatis.
 - Role final: General Manager, Super Admin, Finance, Customer Service,
   NOC/Network Engineer, Teknisi Lapangan, Auditor/Viewer.
+- Kode role backend: `general_manager`, `super_admin`, `finance`,
+  `customer_service`, `noc_network_engineer`, `field_technician`,
+  `auditor_viewer`. MVP permissions aktif untuk Super Admin, Customer Service,
+  General Manager, dan Auditor/Viewer; Finance, NOC, dan Teknisi menunggu
+  implementasi modul domain masing-masing.
+- Admin lifecycle MVP: hanya Super Admin mengelola akun staf; satu role per
+  akun; password sementara berlaku 24 jam dan wajib diganti pada login pertama.
+  Reset password dan perubahan status mencabut session target.
+- Session MVP: idle timeout 30 menit, absolute lifetime 8 jam, cookie session
+  HttpOnly, dan mutasi memakai CSRF token. Seed membuat akun Super Admin jika
+  belum ada; seed ulang tidak merotasi password/status/role akun yang sudah ada.
+- Browser MFA belum tersedia dan tetap menjadi gate wajib sebelum UAT/production
+  dengan akun nyata.
 - WhatsApp channel utama, email fallback, dan notifikasi portal; provider
   WhatsApp belum dipilih.
 - Midtrans Snap Sandbox sebagai tahap awal; transaksi dibuat backend, webhook
@@ -135,32 +159,30 @@ terpisah.
 - Hardware server dan lokasi disaster recovery belum mengubah arsitektur
   logical; keputusan kapasitas akan dilakukan melalui capacity planning.
 
-## Hal yang masih TBD
+## Hal yang masih TBD: owner dan decision gate
 
-1. Detail aturan pajak Indonesia, format e-invoice/faktur pajak, nomor seri,
-   dan apakah perlu integrasi penyedia pajak tertentu?
-2. Detail prorata, deposit, grace period setelah fase awal, denda, serta aturan
-   validasi pembayaran sebelum suspend/reconnect?
-3. Batas nominal approval dan separation of duties untuk setiap jenis request?
-4. Provider WhatsApp, sender/account ownership, fallback email provider, dan
-   template notifikasi wajib?
-5. Produk/metode pembayaran Midtrans final, merchant account, settlement
-   report format, dan rekening settlement?
-6. Detail MikroTik: RouterOS version, topology, management VLAN/VPN, address
-   plan, PPPoE naming, profile, bandwidth policy, dan lab router?
-7. Merek/model OLT/ONU, jumlah PON, VLAN model, dan protokol management yang
-   mungkin dipilih?
-8. Spesifikasi server, anggaran, backup target, lokasi disaster recovery,
-   konektivitas, static IP, dan kebutuhan RAID/UPS?
-9. SLA support per prioritas insiden serta validasi target RPO/RTO?
-10. Data migrasi awal apa yang tersedia, dan bagaimana memastikan data tersebut
-    sintetis/di-redact selama development?
+Pemilik proyek InstaLink adalah accountable owner untuk keputusan bisnis sampai
+owner individu ditunjuk. Keputusan tetap TBD dan memblokir hanya fase yang
+bergantung padanya; tidak memblokir fondasi identity yang sudah disetujui.
+
+| Topik yang belum diputuskan | Owner | Keputusan/gate |
+| --- | --- | --- |
+| Pajak Indonesia, format e-invoice/faktur pajak, nomor seri, penyedia pajak | Pemilik proyek; konsultasi finance/accounting | Tetapkan kewajiban dan acceptance criteria sebelum Fase 4 |
+| Prorata, deposit, grace period final, denda, validasi pembayaran suspend/reconnect | Pemilik proyek; konsultasi finance dan Customer Service | No auto-disconnect tetap berlaku; aturan rinci diputuskan sebelum billing/provisioning |
+| Batas approval dan separation of duties | Pemilik proyek; konsultasi finance | Tetapkan threshold dan approver sebelum workflow approval/billing |
+| Provider WhatsApp/email, kepemilikan sender, consent, template | Pemilik proyek; owner komunikasi ditunjuk sebelum integrasi | Pilih provider dan kebijakan consent sebelum notifikasi eksternal |
+| Produk/metode Midtrans, merchant account, settlement/rekening | Pemilik proyek; owner finance | Tentukan untuk Sandbox/pilot sebelum transaksi non-sintetis |
+| RouterOS, topology, management VLAN/VPN, PPPoE profile, bandwidth, lab | Pemilik proyek; owner network ditunjuk | Putuskan sebelum MikroTik pilot; tetap mock/lab sampai saat itu |
+| Vendor/model OLT/ONU, jumlah PON, VLAN, protokol, rollback | Pemilik proyek; owner network ditunjuk | Putuskan sebelum integrasi OLT/ONU |
+| Server, anggaran, backup/DR, konektivitas, static IP, RAID/UPS | Pemilik proyek; owner infrastructure ditunjuk | Putuskan melalui capacity planning sebelum staging |
+| SLA support serta target RPO/RTO | Pemilik proyek; owner operations ditunjuk | Validasi melalui operasi/restore drill sebelum production readiness |
+| Data migrasi, mapping, duplikasi, redaksi dan approval | Pemilik proyek; data owner ditunjuk | Putuskan setelah sample data ditinjau sebelum import/migration |
 
 ## Dependensi sebelum implementasi
 
 | Modul | Dependensi minimum |
 | --- | --- |
-| Identity/RBAC | daftar role final, permission matrix, MFA policy, password/session policy |
+| Identity/RBAC | role dan permission MVP/password/session policy sudah diputuskan; MFA wajib sebelum UAT/production; self-service recovery dan role-catalog administration masih backlog |
 | Customer/master data | field identitas perusahaan/pelanggan, privacy/retention policy |
 | Billing/invoice | aturan pajak yang berlaku, tax configuration, prorata/deposit detail, approval threshold |
 | Midtrans | akses Sandbox, product/method final untuk pilot, webhook contract, settlement report sample |
@@ -171,22 +193,25 @@ terpisah.
 | Infrastructure | capacity budget, backup destination, DR location, firewall/VPN plan |
 | Operations | SLA definitions, on-call ownership, monitoring signals, RPO/RTO test plan |
 
-## Rekomendasi urutan implementasi setelah persetujuan coding
+## Urutan kerja berikutnya
 
-1. Platform foundation dan environment contract tanpa koneksi produksi.
-2. Identity, RBAC, audit log, approval engine, dan konfigurasi.
-3. Customer, address, coverage, plan version, dan import preview/approval.
-4. Survey, installation, technician, subscription, dan customer portal dasar.
-5. Billing/invoice dengan tax abstraction dan rule configuration.
-6. Notification outbox dengan mock WhatsApp/email/portal providers.
-7. Midtrans Sandbox, webhook verification, idempotency, dan reconciliation.
-8. MikroTik mock/lab adapter; provisioning manual dan auto-disconnect tetap off.
-9. OLT/ONU vendor-neutral model tanpa vendor implementation.
-10. Backup/restore drill, monitoring, security testing, load testing, lalu staging.
+1. Putuskan field/privasi master data dan implement customers, addresses,
+   coverage, plan version, serta import preview/approval.
+2. Implement survey, installation, technician, subscription, dan customer
+   portal dasar.
+3. Implement billing/invoice setelah pajak, approval threshold, dan aturan
+   suspend/reconnect diputuskan.
+4. Implement notification outbox/provider adapters; gunakan mock sampai
+   provider, ownership, dan consent disetujui.
+5. Midtrans Sandbox, webhook verification, idempotency, dan reconciliation.
+6. MikroTik mock/lab adapter; provisioning manual dan auto-disconnect tetap off.
+7. OLT/ONU vendor-neutral model tanpa vendor implementation.
+8. Backup/restore drill, MFA, monitoring, security/load testing, lalu staging.
 
 ## Gate persetujuan
 
-Implementasi belum dimulai sampai keputusan pertanyaan di atas memiliki owner
-dan jawaban minimum untuk fase terkait. Setelah disetujui, fase dikerjakan
-berurutan dengan demo, test evidence, dan approval gate; keputusan baru dicatat
-sebagai ADR di folder `docs/`.
+Fondasi platform dan identity MVP telah diimplementasikan berdasarkan desain
+yang disetujui. Pertanyaan domain di atas memiliki accountable owner dan gate
+per fase; keputusan rinci tetap harus dicatat sebagai ADR sebelum pekerjaan
+domain terkait dimulai. Tidak ada koneksi production, migration remote, atau
+deployment production tanpa review dan persetujuan eksplisit terpisah.

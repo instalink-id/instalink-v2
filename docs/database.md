@@ -14,12 +14,22 @@
 
 ## 2. Implementasi schema saat ini
 
-Migration Prisma `20261102214000_customer_service_foundation` saat ini membuat
-model `BillingRule`, `User`, `Role`, `UserRole`, `Session`, `Registration`,
+Migration Prisma `20261102214000_customer_service_foundation` membuat model
+`BillingRule`, `User`, `Role`, `UserRole`, `Session`, `Registration`,
 `RegistrationFollowUp`, dan `AuditLog`, beserta enum `UserStatus`,
-`RegistrationStatus`, dan `AuditAction`. Role MVP yang aktif adalah
-`super_admin`, `customer_service`, dan `auditor_viewer`; permission saat ini
-ditentukan oleh policy backend, bukan tabel permission.
+`RegistrationStatus`, dan `AuditAction`. Migration
+`20261103140000_admin_foundation` menambahkan `User.mustChangePassword`,
+`User.passwordChangeExpiresAt`, audit actions untuk lifecycle akun, serta
+unique constraint satu role per pengguna. Migration memeriksa duplikasi
+assignment sebelum menambah constraint dan berhenti tanpa menghapus assignment
+jika duplikasi ditemukan.
+
+Katalog role yang tersedia berisi `general_manager`, `super_admin`, `finance`,
+`customer_service`, `noc_network_engineer`, `field_technician`, dan
+`auditor_viewer`. Permission ditentukan oleh policy backend, bukan tabel
+permission. Pada MVP, permission aktif hanya untuk Super Admin, Customer
+Service, General Manager, dan Auditor/Viewer; lihat
+[docs/operations-security.md](operations-security.md) untuk matriks aktual.
 
 `Registration` tetap terpisah dari entitas customer. `idempotencyKey` bersifat
 unik, session token disimpan sebagai hash, dan snapshot audit meredaksi field
@@ -38,8 +48,28 @@ E2E hanya memakai fixture sintetis dan membersihkan record fixture dari
 database test.
 
 Seed development menggunakan `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD`
-yang diberikan pada environment lokal; password plaintext tidak ditulis ke
-database atau repository.
+yang diberikan pada environment lokal; password di-hash sebelum disimpan.
+Seed meng-upsert katalog role, tetapi hanya membuat akun Super Admin jika
+email belum ada. Jika akun seed sudah ada, seed tidak mengganti password,
+status, atau role akun tersebut.
+
+### Tinjau dan terapkan migration lokal
+
+Migration aktif harus ditinjau sebelum diterapkan:
+
+1. Pastikan `DATABASE_URL` hanya menunjuk ke database development lokal yang
+   benar; jangan mencetak URL atau kredensial ke log.
+2. Jalankan `npm.cmd exec -- prisma migrate status` dan tinjau file SQL yang
+   belum diterapkan di `prisma/migrations/`.
+3. Terapkan dengan `npm.cmd exec -- prisma migrate deploy` hanya setelah review.
+   Jangan gunakan `migrate reset` pada database yang mungkin berisi data.
+4. Verifikasi status migration dan jalankan smoke test lokal.
+
+Migration Prisma tidak menyediakan rollback otomatis. Jika migration gagal
+atau perlu dibatalkan, jangan mengedit data produksi manual: siapkan migration
+korektif yang ditinjau atau pulihkan backup yang sudah diverifikasi. Migration
+apa pun ke database remote memerlukan verifikasi target/status, review SQL,
+backup/rollback plan, dan persetujuan eksplisit sebelum dijalankan.
 
 ## 3. ERD target (belum seluruhnya diimplementasikan)
 

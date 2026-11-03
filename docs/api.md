@@ -8,7 +8,7 @@ environment non-production atau di balik akses admin. Request ID dari client
 dibatasi 128 karakter; nilai lebih panjang diganti dengan UUID server sebelum
 dipakai pada response dan audit correlation.
 
-## Implemented endpoints: Customer Service foundation
+## Implemented endpoints: platform and Customer Service foundation
 
 Endpoint berikut telah tersedia pada backend:
 
@@ -17,7 +17,13 @@ Endpoint berikut telah tersedia pada backend:
 | GET | `/health`, `/health/ready` | public |
 | POST | `/auth/login` | public |
 | POST | `/auth/logout` | authenticated + CSRF |
+| POST | `/auth/password/change` | authenticated + CSRF; temporary password wajib diganti |
 | GET | `/me` | authenticated |
+| GET | `/users` | `user:read` (`super_admin`) |
+| POST | `/users` | `user:write` + CSRF (`super_admin`) |
+| PATCH | `/users/:id/role` | `user:write` + CSRF (`super_admin`) |
+| PATCH | `/users/:id/status` | `user:write` + CSRF (`super_admin`) |
+| POST | `/users/:id/reset-password` | `user:write` + CSRF (`super_admin`) |
 | POST | `/public/registrations` | public, validation, idempotency, rate limited |
 | GET | `/registrations` | `customer_service`, `super_admin`, `auditor_viewer` |
 | GET | `/registrations/:id` | `customer_service`, `super_admin`, `auditor_viewer` |
@@ -31,9 +37,32 @@ Registrasi mendukung filter `status`, `area`, `from`, `to`, `page`, dan
 session cookie dan header `x-csrf-token` yang harus sama dengan cookie
 `instalink_csrf`; cookie session bernama `instalink_session` dan berstatus
 HttpOnly. Endpoint login mengeluarkan kedua cookie tersebut.
+Session memiliki idle timeout 30 menit dan batas absolut 8 jam.
+
+### Identity dan manajemen akun admin yang tersedia
+
+`GET /users` mendukung query tervalidasi `search`, `role`, `status`, `page`,
+dan `pageSize` (maksimum 100). `POST /users` menerima `email` dan `roleCode`;
+role harus berasal dari katalog yang tersedia. Akun baru aktif, diberi satu
+role, dan diwajibkan mengganti password saat login pertama. Response create
+dan reset password memuat `temporaryPassword` satu kali; nilainya tidak
+disimpan oleh frontend ke browser storage. Password sementara kedaluwarsa
+setelah 24 jam.
+
+Perubahan role menegakkan satu role per pengguna. Perubahan status dan reset
+password mencabut semua session target; password change mencabut semua session
+lainnya. API menolak perubahan role/status pada akun Super Admin yang sedang
+dipakai dan menjaga agar selalu ada Super Admin aktif. Operasi create,
+role/status change, reset, dan password change dicatat pada audit log.
+
+Permission `user:read` dan `user:write` saat ini hanya diberikan kepada
+`super_admin`. Link dashboard disembunyikan dari role lain sebagai UX, bukan
+batas keamanan; backend tetap memeriksa session dan permission. Role catalog
+dan administrasi permission belum memiliki endpoint.
 
 Audit tersedia untuk login berhasil/gagal, logout, registrasi baru, perubahan
-status, dan follow-up. Snapshot audit dan response auditor meredaksi PII.
+status/follow-up, pembuatan akun, perubahan role/status, reset password, dan
+password change. Snapshot audit dan response auditor meredaksi PII.
 Rate limit registrasi saat ini berbasis memori proses dan harus diganti dengan
 mekanisme bersama sebelum deployment multi-instance.
 
@@ -44,13 +73,12 @@ mekanisme bersama sebelum deployment multi-instance.
 | POST | `/auth/refresh` | refresh session |
 | POST | `/auth/password/forgot` | public, rate limited |
 | POST | `/auth/password/reset` | reset token |
-| GET | `/users` | `users:read` |
-| POST | `/users` | `users:write` |
-| PATCH | `/users/:id/roles` | `roles:write` |
+| GET | `/roles` | `role:read` |
+| POST/PATCH | `/roles` | `role:write` |
 | GET/PATCH | `/approval-policies` | `approval_policy:read/write` |
 
-Login rate limit, refresh/reset password, manajemen user, dan policy approval
-belum diimplementasikan.
+Login rate limit, refresh session, pemulihan/reset password mandiri, administrasi
+role catalog, dan endpoint approval policy belum diimplementasikan.
 
 ## Planned website, customer, coverage, and catalog endpoints
 

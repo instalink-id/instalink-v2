@@ -1,7 +1,8 @@
 # Sistem Manajemen ISP FTTH
 
-Fondasi perancangan sistem manajemen ISP FTTH yang modular untuk 500-2.000
-pelanggan pada fase awal. Fondasi aplikasi awal sekarang tersedia. Domain bisnis, integrasi produksi, dan
+Fondasi sistem manajemen ISP FTTH modular untuk 500-2.000 pelanggan pada fase
+awal. Platform, identity/RBAC MVP, registrasi Customer Service, dan dashboard
+admin dasar telah tersedia. Domain bisnis lanjutan, integrasi produksi, dan
 deployment production belum diaktifkan.
 
 ## Kondisi repository saat ini
@@ -12,7 +13,7 @@ deployment production belum diaktifkan.
   sampai kontrak backend domain tersedia.
 - `instalink-backend/` berisi NestJS REST API, Prisma/PostgreSQL, session
   authentication, RBAC MVP, registrasi publik, workflow Customer Service,
-  audit log, health endpoint, dan Swagger.
+  manajemen akun admin, audit log, health endpoint, dan Swagger.
 - `instalink-frontend/` juga menyediakan dashboard internal pada `/dashboard`
   yang memakai API backend same-origin.
 - `instalink-infrastructure/` berisi Compose PostgreSQL lokal dan catatan Nginx.
@@ -30,7 +31,7 @@ Frontend:
 
 ```powershell
 Set-Location .\instalink-frontend
-npm run dev
+npm.cmd run dev
 ```
 
 Route frontend yang tersedia:
@@ -40,6 +41,12 @@ Route frontend yang tersedia:
 - `/pasang-wifi-sumedang-murah`
 - `/corporate`
 - `/portal-pelanggan`
+
+Dashboard internal tersedia pada `/dashboard`, login pada
+`/dashboard/login`, penggantian password wajib pada
+`/dashboard/change-password`, dan manajemen akun pada `/dashboard/users`.
+Hanya Super Admin yang melihat navigasi manajemen pengguna; backend tetap
+menegakkan permission untuk setiap request.
 - `/galeri`
 - `/berita`
 - `/kontak`
@@ -67,8 +74,8 @@ alamat melalui OpenStreetMap Nominatim. Geolocation memerlukan HTTPS atau
 Validasi frontend:
 
 ```powershell
-npm run lint
-npm run build
+npm.cmd run lint
+npm.cmd run build
 ```
 
 Portal pelanggan dan formulir publik saat ini adalah permukaan UI dengan
@@ -97,11 +104,14 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
 Atur `DATABASE_URL` pada `.env` lokal agar menunjuk ke database development
-`instalink`. File `.env` tidak boleh dikomit. Terapkan migration dan buat akun
-Super Admin sintetis dengan environment variable lokal yang tidak disimpan di
-repository:
+`instalink`. File `.env` tidak boleh dikomit. Sebelum mengubah schema, tinjau
+status migration dan SQL yang menunggu; terapkan migration hanya ke database
+lokal yang sudah diverifikasi. Jangan gunakan `migrate reset` pada database
+yang berisi data.
 
 ```powershell
+npm.cmd exec -- prisma migrate status
+# Tinjau SQL pada prisma\migrations sebelum menerapkan migration.
 npm.cmd exec -- prisma migrate deploy
 $env:SEED_ADMIN_EMAIL = 'admin@example.test'
 $env:SEED_ADMIN_PASSWORD = '<password-lokal-yang-anda-tentukan>'
@@ -109,6 +119,11 @@ npm.cmd exec -- prisma db seed
 Remove-Item Env:SEED_ADMIN_EMAIL, Env:SEED_ADMIN_PASSWORD
 npm.cmd run start:dev
 ```
+
+Seed membuat katalog role dan membuat akun Super Admin hanya jika email seed
+belum ada. Menjalankannya kembali tidak mengganti password, status, atau role
+akun yang sudah ada. Simpan seed password hanya di environment lokal/secret
+store; jangan menaruhnya di source code, dokumentasi, atau commit.
 
 API tersedia di `http://localhost:3001`, health endpoint di
 `/api/v1/health`, dan Swagger di `/docs`. Dashboard tersedia melalui frontend
@@ -143,11 +158,14 @@ untuk development native ini.
 
 ### Cakupan backend saat ini
 
-Fondasi yang sudah berjalan meliputi login/logout dashboard internal, `/me`,
-pengajuan registrasi publik, daftar/filter/detail registrasi staf, workflow
-status dan follow-up, ringkasan dashboard, serta audit log. Billing, payment,
-customer portal, role management, reset password, dan integrasi jaringan belum
-diimplementasikan; lihat [docs/api.md](docs/api.md) untuk status setiap route.
+Fondasi yang sudah berjalan meliputi login/logout, `/me`, penggantian password
+wajib, daftar/pembuatan akun admin, perubahan satu role, aktivasi/nonaktifkan,
+reset password, pengajuan registrasi publik, workflow Customer Service,
+ringkasan dashboard, dan audit log. Password sementara berlaku 24 jam dan
+harus diganti saat login pertama; reset mencabut sesi aktif. Billing, payment,
+pemulihan password mandiri, administrasi permission/role catalog, customer
+portal yang terhubung backend, dan integrasi jaringan belum tersedia. Lihat
+[docs/api.md](docs/api.md) untuk status setiap route.
 
 ## Rancangan
 
@@ -170,8 +188,10 @@ diimplementasikan; lihat [docs/api.md](docs/api.md) untuk status setiap route.
    sebelum invoice dianggap lunas.
 5. Pemutusan layanan otomatis belum diaktifkan.
 
-## Persetujuan sebelum coding
+## Persetujuan sebelum domain dan production work
 
-Review seluruh dokumen pada `docs/` dan jawab pertanyaan terbuka pada
-`docs/implementation-roadmap.md`. Integrasi produksi, modul domain finansial, koneksi MikroTik, dan deployment
-produksi tetap memerlukan review serta approval terpisah.
+Fondasi platform dan identity MVP mengikuti desain yang telah disetujui.
+Sebelum melanjutkan modul domain, review dokumen terkait dan putuskan pertanyaan
+yang menjadi dependency pada [docs/implementation-roadmap.md](docs/implementation-roadmap.md).
+Integrasi produksi, migrasi ke database remote, koneksi MikroTik, dan deployment
+produksi tetap memerlukan review serta approval eksplisit terpisah.

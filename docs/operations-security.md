@@ -7,23 +7,33 @@
   sebagai hash di database; session memiliki idle timeout 30 menit dan absolute
   lifetime 8 jam. Logout mencabut session aktif.
 - **Implemented:** Cookie session `HttpOnly`; cookie CSRF dapat dibaca frontend
-  untuk mengirim header `x-csrf-token`. CSRF ditegakkan pada logout serta
-  mutation status/follow-up registrasi. Production cookie menggunakan `Secure`;
-  konfigurasi final harus diuji pada deployment TLS.
-- **Implemented:** Permission backend untuk `super_admin`,
-  `customer_service`, dan `auditor_viewer`. Auditor read-only dan response
-  registrasi/audit meredaksi PII.
+  untuk mengirim header `x-csrf-token`. CSRF ditegakkan pada logout, password
+  change, mutasi user, dan mutasi registrasi. Production cookie menggunakan
+  `Secure`; konfigurasi final harus diuji pada deployment TLS.
+- **Implemented:** Super Admin dapat membuat user, memberikan tepat satu role,
+  mengubah status, dan mereset password. Password sementara dibuat acak,
+  berlaku 24 jam, wajib diganti saat login pertama, dan hanya dikembalikan
+  sekali dari endpoint create/reset. Frontend tidak menyimpannya di browser
+  storage. Reset/status change mencabut semua session target; password change
+  mencabut semua session lain.
+- **Implemented:** Katalog berisi tujuh role produk. Permission backend MVP
+  hanya aktif untuk `super_admin`, `customer_service`, `general_manager`, dan
+  `auditor_viewer`; role lain belum memiliki akses ke modul domain yang belum
+  tersedia. Auditor read-only dan response registrasi/audit meredaksi PII.
 - **Implemented:** Audit log mencatat login berhasil/gagal, logout, registrasi
-  baru, perubahan status, dan follow-up; snapshot PII di-redact.
-- **Belum diimplementasikan:** refresh session endpoint, reset password,
-  undangan user, role management, login rate limit, dan MFA. Jangan membuka
-  layanan ke UAT atau produksi sebelum kontrol yang diwajibkan untuk akses
-  admin diselesaikan.
+  baru, perubahan status/follow-up, pembuatan akun, perubahan role/status,
+  reset password, dan password change; snapshot PII di-redact.
+- **Belum diimplementasikan:** self-service forgot/reset password, undangan
+  user, pengelolaan role catalog/permission, refresh session, login rate limit,
+  dan MFA. Jangan membuka layanan ke UAT atau produksi sebelum kontrol yang
+  diwajibkan untuk akses admin diselesaikan.
 - Rate limit registrasi publik saat ini memakai counter in-memory per proses
   (10 request per menit). Ini bukan limiter terdistribusi dan harus diganti
   sebelum deployment multi-instance atau paparan publik.
-- Role arsitektur yang belum aktif mencakup `general_manager`, `finance`,
-  `noc_network_engineer`, `field_technician`, dan `customer`.
+- Semua role adalah `general_manager`, `super_admin`, `finance`,
+  `customer_service`, `noc_network_engineer`, `field_technician`, dan
+  `auditor_viewer`. Keberadaan role di katalog tidak berarti modul domainnya
+  sudah aktif.
 - Permission dicek di guard/policy backend; UI hiding bukan security control.
 - MFA untuk admin dan network/billing roles menjadi acceptance criterion
   sebelum production.
@@ -36,13 +46,13 @@
 
 | Role | Fokus akses |
 | --- | --- |
-| General Manager | approval lintas domain dan laporan; tidak otomatis mendapat secret |
-| Super Admin | konfigurasi teknis dan user; approval finansial tetap policy-controlled |
-| Finance | invoice, payment, reconciliation; tidak menyetujui request sendiri |
-| Customer Service | customer, tiket, registrasi; tanpa akses secret/network |
-| NOC/Network Engineer | network service/device dan provisioning; tidak mengubah invoice |
-| Teknisi Lapangan | work order, survey, instalasi yang ditugaskan |
-| Auditor/Viewer | read-only laporan/audit sesuai scope |
+| General Manager (`general_manager`) | Saat ini read-only registrasi, dashboard, audit; approval domain belum tersedia |
+| Super Admin (`super_admin`) | Semua permission MVP, termasuk manajemen akun; bukan bypass untuk approval domain yang belum dibangun |
+| Keuangan (`finance`) | Role tersedia; permission billing/payment belum diaktifkan |
+| Customer Service (`customer_service`) | Registrasi baca/tulis dan dashboard; belum mendapat akses ke domain customer/tiket |
+| NOC/Network Engineer (`noc_network_engineer`) | Role tersedia; akses network belum diaktifkan |
+| Teknisi Lapangan (`field_technician`) | Role tersedia; akses work order/survey/instalasi belum diaktifkan |
+| Auditor/Viewer (`auditor_viewer`) | Read-only registrasi, dashboard, dan audit; response audit/registrasi meredaksi PII |
 
 Semua role menggunakan least privilege dan policy resource-level.
 
@@ -133,6 +143,26 @@ pesan memiliki dedupe key, idempotency key, status queued/sent/delivered/
 failed, retry count, provider reference, dan redacted error. Provider dapat
 diganti tanpa mengubah modul customer atau billing.
 
+## 4.2 Konfigurasi lokal dan migration
+
+Backend memakai `NODE_ENV` (`development`, `test`, `production`),
+`PORT` (default `3001`), `DATABASE_URL` (PostgreSQL), dan
+`FRONTEND_ORIGIN` (default `http://localhost:3000`; dapat berisi daftar origin
+HTTP/HTTPS). `DATABASE_URL` wajib untuk runtime selain `test`. `TEST_DATABASE_URL`
+hanya untuk E2E dan harus menunjuk ke host loopback serta database berakhiran
+`_test`. `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD` hanya diberikan saat
+menjalankan seed lokal; secret Midtrans/provider tidak dibutuhkan untuk fondasi
+ini. Jangan menyalin nilai credential ke laporan atau dokumentasi.
+
+Sebelum migration lokal, verifikasi target `DATABASE_URL`, jalankan
+`npm.cmd exec -- prisma migrate status`, dan review SQL pending di
+`instalink-backend/prisma/migrations/`. Terapkan dengan `npm.cmd exec -- prisma
+migrate deploy` hanya setelah review. Jangan menjalankan `migrate reset` pada
+database berisi data. Migration Prisma tidak memiliki rollback otomatis:
+gunakan migration korektif yang ditinjau atau restore backup yang diverifikasi.
+Migration remote memerlukan pemeriksaan target/status dan approval eksplisit;
+belum ada migration yang diterapkan ke database produksi dalam tahap ini.
+
 ## 5. Testing strategy
 
 - **Unit**: domain rules, invoice totals, status transitions, RBAC policies,
@@ -140,13 +170,16 @@ diganti tanpa mengubah modul customer atau billing.
 - **Integration**: Nest modules + PostgreSQL disposable database, Prisma
   migrations, transaction/concurrency, webhook replay.
 - **Contract**: OpenAPI schema and frontend API client compatibility.
-- **E2E**: registration -> survey -> installation -> subscription -> invoice ->
-  Midtrans sandbox webhook -> portal status.
+- **Implemented E2E**: login/session, forced password change, admin account
+  lifecycle/authorization, and Customer Service registration workflow use
+  synthetic fixtures and an isolated PostgreSQL test database.
+- **Planned E2E**: registration -> survey -> installation -> subscription ->
+  invoice -> Midtrans sandbox webhook -> portal status.
 - **Security**: dependency/image scan, SAST, secret scan, auth abuse, rate
   limit, authorization matrix, OWASP API checks.
 - **Operational**: backup restore drill, migration rollback rehearsal,
   health/readiness checks, queue retry/dead-letter behavior.
-- CI blocks merge on formatting, typecheck, lint, tests, migration validation,
+- **Target CI gate**: formatting, typecheck, lint, tests, migration validation,
   and secret scan. Use synthetic fixtures only.
 - E2E lokal memakai PostgreSQL terpisah dengan `TEST_DATABASE_URL` eksplisit.
   URL harus loopback, nama database berakhiran `_test`, dan tidak boleh
