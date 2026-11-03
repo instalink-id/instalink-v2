@@ -15,9 +15,20 @@ import { getCurrentUser, logout } from "../../lib/dashboard-api";
 import type { CurrentUser } from "../../lib/dashboard-types";
 
 const DashboardUserContext = createContext<CurrentUser | null>(null);
+const UpdateDashboardUserContext = createContext<
+  ((user: CurrentUser) => void) | null
+>(null);
 
 export function useDashboardUser() {
   return useContext(DashboardUserContext);
+}
+
+export function useUpdateDashboardUser() {
+  const updateUser = useContext(UpdateDashboardUserContext);
+  if (!updateUser) {
+    throw new Error("Dashboard user context is unavailable.");
+  }
+  return updateUser;
 }
 
 const navigation = [
@@ -41,6 +52,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState("");
   const [logoutError, setLogoutError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const updateUser = useCallback((nextUser: CurrentUser) => {
+    setUser(nextUser);
+  }, []);
 
   useEffect(() => {
     const handleUnauthorized = () => router.replace("/dashboard/login");
@@ -95,6 +109,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     };
   }, [isLoginPage]);
 
+  useEffect(() => {
+    if (
+      !isLoginPage &&
+      !loading &&
+      user?.mustChangePassword &&
+      pathname !== "/dashboard/change-password"
+    ) {
+      router.replace("/dashboard/change-password");
+    }
+  }, [isLoginPage, loading, pathname, router, user]);
+
   if (isLoginPage) return children;
 
   if (loading) {
@@ -138,6 +163,19 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   if (!user) return null;
 
+  if (
+    user.mustChangePassword &&
+    pathname !== "/dashboard/change-password"
+  ) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f8fa] px-5 text-slate-600">
+        <p role="status" className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm">
+          Mengarahkan ke halaman ganti kata sandi...
+        </p>
+      </main>
+    );
+  }
+
   const handleLogout = async () => {
     setLogoutError("");
     try {
@@ -150,9 +188,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     }
   };
 
+  const navigationItems = user.mustChangePassword
+    ? []
+    : [
+        ...navigation,
+        ...(user.roles.includes("super_admin")
+          ? [{ href: "/dashboard/users", label: "Pengguna", mark: "03" }]
+          : []),
+      ];
+
   const nav = (
     <nav aria-label="Navigasi dashboard" className="grid gap-1">
-      {navigation.map((item) => {
+      {navigationItems.map((item) => {
         const active =
           pathname === item.href ||
           (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -180,90 +227,102 @@ export function DashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <DashboardUserContext.Provider value={user}>
-      <div className="min-h-screen bg-[#f3f8fa] text-slate-950">
-        <div className="min-h-screen md:grid md:grid-cols-[232px_minmax(0,1fr)]">
-          <aside className="hidden border-r border-slate-200 bg-white px-4 py-6 md:flex md:flex-col">
-            <Link href="/dashboard" className="flex items-center gap-2 px-2 text-lg font-bold tracking-tight">
-              <span className="brand-mark" aria-hidden="true"><span /></span>
-              <span>Insta<span className="text-cyan-700">Link</span></span>
-            </Link>
-            <p className="mb-3 mt-10 px-3 text-[10px] font-bold uppercase tracking-[0.17em] text-slate-400">
-              Ruang kerja
-            </p>
-            {nav}
-            <div className="mt-auto border-t border-slate-100 pt-4">
-              <p className="truncate px-3 text-xs font-semibold text-slate-800">{user.email}</p>
-              <p className="mt-1 px-3 text-xs text-slate-500">{roleLabel(user.roles)}</p>
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                className="mt-4 min-h-11 w-full rounded-xl px-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-              >
-                Keluar
-              </button>
-            </div>
-          </aside>
-
-          <div className="min-w-0">
-            <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-              <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center gap-3">
-                  <Link href="/dashboard" className="flex items-center gap-2 text-base font-bold md:hidden">
-                    <span className="brand-mark" aria-hidden="true"><span /></span>
-                    <span>Insta<span className="text-cyan-700">Link</span></span>
-                  </Link>
-                  <p className="hidden text-sm font-medium text-slate-500 md:block">
-                    Layanan pelanggan / <span className="text-slate-900">{navigation.find((item) => item.href === pathname)?.label ?? "Registrasi"}</span>
+      <UpdateDashboardUserContext.Provider value={updateUser}>
+        <div className="min-h-screen bg-[#f3f8fa] text-slate-950">
+          <div className="min-h-screen md:grid md:grid-cols-[232px_minmax(0,1fr)]">
+            <aside className="hidden border-r border-slate-200 bg-white px-4 py-6 md:flex md:flex-col">
+              <Link href="/dashboard" className="flex items-center gap-2 px-2 text-lg font-bold tracking-tight">
+                <span className="brand-mark" aria-hidden="true"><span /></span>
+                <span>Insta<span className="text-cyan-700">Link</span></span>
+              </Link>
+              {!user.mustChangePassword ? (
+                <>
+                  <p className="mb-3 mt-10 px-3 text-[10px] font-bold uppercase tracking-[0.17em] text-slate-400">
+                    Ruang kerja
                   </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="hidden max-w-52 truncate text-xs text-slate-600 sm:block">{user.email}</span>
-                  <button
-                    type="button"
-                    aria-expanded={menuOpen}
-                    aria-controls="dashboard-mobile-navigation"
-                    aria-label={menuOpen ? "Tutup navigasi" : "Buka navigasi"}
-                    onClick={() => setMenuOpen((open) => !open)}
-                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 md:hidden"
-                  >
-                    {menuOpen ? "Tutup" : "Menu"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="hidden min-h-10 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-950 md:block"
-                  >
-                    Keluar
-                  </button>
-                </div>
-              </div>
-              {menuOpen ? (
-                <div id="dashboard-mobile-navigation" className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
                   {nav}
-                  <p className="mt-3 truncate border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    {roleLabel(user.roles)} · {user.email}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="mt-2 min-h-11 w-full rounded-xl px-3 text-left text-sm font-semibold text-slate-700"
-                  >
-                    Keluar dari dashboard
-                  </button>
+                </>
+              ) : (
+                <p className="mt-10 px-3 text-sm leading-6 text-slate-600">
+                  Ganti kata sandi untuk melanjutkan.
+                </p>
+              )}
+              <div className="mt-auto border-t border-slate-100 pt-4">
+                <p className="truncate px-3 text-xs font-semibold text-slate-800">{user.email}</p>
+                <p className="mt-1 px-3 text-xs text-slate-500">{roleLabel(user.roles)}</p>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="mt-4 min-h-11 w-full rounded-xl px-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                >
+                  Keluar
+                </button>
+              </div>
+            </aside>
+
+            <div className="min-w-0">
+              <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+                <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+                  <div className="flex items-center gap-3">
+                    <Link href="/dashboard" className="flex items-center gap-2 text-base font-bold md:hidden">
+                      <span className="brand-mark" aria-hidden="true"><span /></span>
+                      <span>Insta<span className="text-cyan-700">Link</span></span>
+                    </Link>
+                    <p className="hidden text-sm font-medium text-slate-500 md:block">
+                      Layanan pelanggan / <span className="text-slate-900">{navigationItems.find((item) => item.href === pathname)?.label ?? (pathname === "/dashboard/change-password" ? "Ganti kata sandi" : "Registrasi")}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="hidden max-w-52 truncate text-xs text-slate-600 sm:block">{user.email}</span>
+                    {!user.mustChangePassword ? (
+                      <button
+                        type="button"
+                        aria-expanded={menuOpen}
+                        aria-controls="dashboard-mobile-navigation"
+                        aria-label={menuOpen ? "Tutup navigasi" : "Buka navigasi"}
+                        onClick={() => setMenuOpen((open) => !open)}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 md:hidden"
+                      >
+                        {menuOpen ? "Tutup" : "Menu"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleLogout()}
+                      className="hidden min-h-10 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-950 md:block"
+                    >
+                      Keluar
+                    </button>
+                  </div>
                 </div>
+                {menuOpen && !user.mustChangePassword ? (
+                  <div id="dashboard-mobile-navigation" className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+                    {nav}
+                    <p className="mt-3 truncate border-t border-slate-100 pt-3 text-xs text-slate-500">
+                      {roleLabel(user.roles)} · {user.email}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleLogout()}
+                      className="mt-2 min-h-11 w-full rounded-xl px-3 text-left text-sm font-semibold text-slate-700"
+                    >
+                      Keluar dari dashboard
+                    </button>
+                  </div>
+                ) : null}
+              </header>
+              {logoutError ? (
+                <p role="alert" className="mx-auto mt-4 max-w-7xl px-4 text-sm text-rose-700 sm:px-6 lg:px-8">
+                  {logoutError}
+                </p>
               ) : null}
-            </header>
-            {logoutError ? (
-              <p role="alert" className="mx-auto mt-4 max-w-7xl px-4 text-sm text-rose-700 sm:px-6 lg:px-8">
-                {logoutError}
-              </p>
-            ) : null}
-            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-              {children}
-            </main>
+              <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+                {children}
+              </main>
+            </div>
           </div>
         </div>
-      </div>
+      </UpdateDashboardUserContext.Provider>
     </DashboardUserContext.Provider>
   );
 }

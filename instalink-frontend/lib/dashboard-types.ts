@@ -46,10 +46,65 @@ export type CurrentUser = {
   id: string;
   email: string;
   roles: string[];
+  mustChangePassword: boolean;
 };
 
 export type CurrentUserResponse = {
   user: CurrentUser;
+};
+
+export const ADMIN_ROLE_OPTIONS = [
+  { code: "general_manager", name: "General Manager" },
+  { code: "super_admin", name: "Super Admin" },
+  { code: "finance", name: "Keuangan" },
+  { code: "customer_service", name: "Customer Service" },
+  { code: "noc_network_engineer", name: "NOC / Network Engineer" },
+  { code: "field_technician", name: "Teknisi Lapangan" },
+  { code: "auditor_viewer", name: "Auditor / Viewer" },
+] as const;
+
+export type AdminRoleCode = (typeof ADMIN_ROLE_OPTIONS)[number]["code"];
+export type AdminUserStatus = "ACTIVE" | "DISABLED";
+
+export const ADMIN_USER_STATUS_LABELS: Record<AdminUserStatus, string> = {
+  ACTIVE: "Aktif",
+  DISABLED: "Nonaktif",
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  status: AdminUserStatus;
+  role: { code: AdminRoleCode; name: string } | null;
+  mustChangePassword: boolean;
+  passwordChangeExpiresAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminUserListFilters = {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: AdminRoleCode;
+  status?: AdminUserStatus;
+};
+
+export type AdminUserListResponse = {
+  items: AdminUser[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type CreateAdminUserInput = {
+  email: string;
+  roleCode: AdminRoleCode;
+};
+
+export type TemporaryPasswordUser = AdminUser & {
+  temporaryPassword: string;
 };
 
 export type RegistrationSummaryItem = {

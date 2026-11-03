@@ -1,12 +1,19 @@
 import { apiRequest } from "./api-client";
 import type {
+  AdminRoleCode,
+  AdminUser,
+  AdminUserListFilters,
+  AdminUserListResponse,
   ChangeRegistrationStatusInput,
+  CreateAdminUserInput,
   CurrentUserResponse,
   RegistrationDetail,
   RegistrationListFilters,
   RegistrationListResponse,
   RegistrationSummary,
   RegistrationSummaryFilters,
+  TemporaryPasswordUser,
+  AdminUserStatus,
 } from "./dashboard-types";
 
 function queryString(
@@ -39,6 +46,53 @@ export function logout() {
   return apiRequest<{ status: string }>("/api/v1/auth/logout", {
     method: "POST",
   });
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return apiRequest<{ status: string }>("/api/v1/auth/password/change", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }, { redirectOnUnauthorized: false });
+}
+
+export function getAdminUsers(filters: AdminUserListFilters = {}) {
+  return apiRequest<AdminUserListResponse>(
+    `/api/v1/users${queryString(filters)}`,
+  );
+}
+
+export function createAdminUser(input: CreateAdminUserInput) {
+  return apiRequest<TemporaryPasswordUser>("/api/v1/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function changeAdminUserRole(id: string, roleCode: AdminRoleCode) {
+  return apiRequest<AdminUser>(
+    `/api/v1/users/${encodeURIComponent(id)}/role`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ roleCode }),
+    },
+  );
+}
+
+export function changeAdminUserStatus(id: string, status: AdminUserStatus) {
+  return apiRequest<AdminUser>(
+    `/api/v1/users/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
+export function resetAdminUserPassword(id: string) {
+  return apiRequest<TemporaryPasswordUser>(
+    `/api/v1/users/${encodeURIComponent(id)}/reset-password`,
+    { method: "POST" },
+  );
 }
 
 export function getRegistrationSummary(

@@ -18,8 +18,12 @@ export default function DashboardLoginPage() {
     setPending(true);
     setError("");
     try {
-      await login(email.trim(), password);
-      router.replace("/dashboard");
+      const response = await login(email.trim(), password);
+      router.replace(
+        response.user.mustChangePassword
+          ? "/dashboard/change-password"
+          : "/dashboard",
+      );
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
