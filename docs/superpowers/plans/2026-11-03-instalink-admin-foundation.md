@@ -408,16 +408,15 @@ approval. If approval is not given, leave the remote database unchanged and
 report that local code/tests are ready but the database schema is not applied.
 No remote migration was attempted and no remote database was accessed.
 
-- [ ] **Step 4: Final review and commit**
+- [x] **Step 4: Final review and commit**
 
 Review found a login/password-change race. A regression test failed before
 the fix and passed afterward; login now conditionally updates the active user
 against the verified password hash before creating a session. A minor
 deferred item remains: add a committed migration regression test for duplicate
-`UserRole` assignments failing without changing data. Rerun the runnable
-validation gate and commit only files belonging to this plan. Keep this step
-open until commits are complete; the isolated-database E2E gate remains open
-until a valid local `TEST_DATABASE_URL` is available.
+`UserRole` assignments failing without changing data. The runnable validation
+gate passed and commits are complete. The isolated-database E2E gate remains
+open until a valid local `TEST_DATABASE_URL` is available.
 
 ```powershell
 git add README.md docs/api.md docs/database.md docs/operations-security.md docs/implementation-roadmap.md docs/superpowers/specs/2026-11-03-instalink-admin-foundation-design.md docs/superpowers/plans/2026-11-03-instalink-admin-foundation.md
